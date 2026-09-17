@@ -58,4 +58,4 @@ jobs:
       - run: bun add --dev --exact zod@4.0.0
       - name: Types, runtime and installed package against minimum peer
         # The optional Gateway SDK requires Zod >=4.1.8; this job validates the native package peer.
-        run: bun run typecheck && bun test tests/jev.test.ts tests/providers-http.test.ts tests/schema.test.ts tests/questions.test.ts tests/streams.test.ts tests/evidence.test.ts tests/replay.test.ts && bun run build && bun run test:package:native
+        run: bun run typecheck && bun test tests/jev.test.ts tests/providers-http.test.ts tests/schema.test.ts tests/questions.test.ts tests/streams.test.ts tests/evidence.test.ts tests/replay.test.ts tests/diagnostics.test.ts tests/lifecycle.test.ts && bun run build && bun run test:package:native
