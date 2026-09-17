@@ -1,0 +1,44 @@
+name: Prepare rc2
+
+on:
+  push:
+    branches:
+      - release/0.1.0-rc.2
+    paths:
+      - .github/workflows/prepare-rc2.yml
+
+permissions:
+  contents: write
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: release/0.1.0-rc.2
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          registry-url: https://registry.npmjs.org
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.4.2"
+
+      - run: node .github/scripts/prepare-rc2.mjs
+      - run: bun install --frozen-lockfile
+      - run: bun run format
+      - run: bun run check
+      - run: npm publish --dry-run --access public --tag next
+
+      - name: Commit validated rc2 preparation
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git rm .github/workflows/prepare-rc2.yml .github/scripts/prepare-rc2.mjs
+          git add package.json README.md CHANGELOG.md docs/generative.md docs/releasing.md .github/workflows/publish.yml
+          git commit -m 'chore(release): prepare 0.1.0-rc.2'
+          git push origin HEAD:release/0.1.0-rc.2
