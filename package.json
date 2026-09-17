@@ -1,6 +1,6 @@
 {
   "name": "@nitoba/questions",
-  "version": "0.1.0-rc.2",
+  "version": "0.1.0-rc.3",
   "description": "Typed semantic decisions for TypeScript with Zod, AI SDK providers, and native Web Streams.",
   "keywords": [
     "ai",
