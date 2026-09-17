@@ -1,22 +1,17 @@
 name: Publish to npm
 
 on:
-  workflow_dispatch:
-    inputs:
-      version:
-        description: Exact package version expected in package.json
-        required: true
-        default: 0.1.0-rc.2
-        type: string
-      dry_run:
-        description: Validate the release without publishing
-        required: true
-        default: true
-        type: boolean
+  push:
+    tags:
+      - "v*"
 
 permissions:
   contents: read
   id-token: write
+
+concurrency:
+  group: npm-publish-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
   publish:
@@ -25,6 +20,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          fetch-depth: 0
           persist-credentials: false
 
       - uses: actions/setup-node@v4
@@ -36,22 +32,44 @@ jobs:
         with:
           bun-version: "1.4.2"
 
-      - name: Verify requested version
-        env:
-          EXPECTED_VERSION: ${{ inputs.version }}
+      - name: Verify release tag
+        id: release
+        shell: bash
         run: |
-          ACTUAL_VERSION="$(node -p "require('./package.json').version")"
-          test "$ACTUAL_VERSION" = "$EXPECTED_VERSION" || {
-            echo "Expected $EXPECTED_VERSION but package.json contains $ACTUAL_VERSION" >&2
+          set -euo pipefail
+
+          TAG="${GITHUB_REF_NAME}"
+          VERSION="${TAG#v}"
+          PACKAGE_VERSION="$(node -p "require('./package.json').version")"
+
+          if [[ "$TAG" != "v$PACKAGE_VERSION" ]]; then
+            echo "Tag $TAG does not match package.json version $PACKAGE_VERSION" >&2
             exit 1
-          }
+          fi
+
+          if [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+-rc\.[0-9]+$ ]]; then
+            DIST_TAG="next"
+          elif [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            DIST_TAG="latest"
+          else
+            echo "Unsupported release version: $VERSION. Expected x.y.z-rc.N or x.y.z." >&2
+            exit 1
+          fi
+
+          git fetch origin main --depth=1
+          RELEASE_COMMIT="$(git rev-parse HEAD)"
+          if ! git merge-base --is-ancestor "$RELEASE_COMMIT" origin/main; then
+            echo "Release tag must point to a commit contained in main." >&2
+            exit 1
+          fi
+
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "dist_tag=$DIST_TAG" >> "$GITHUB_OUTPUT"
+          echo "Publishing @nitoba/questions@$VERSION with npm dist-tag $DIST_TAG"
 
       - run: bun install --frozen-lockfile
 
-      - name: Validate publishable tarball
-        if: ${{ inputs.dry_run == true }}
-        run: npm publish --dry-run --access public --tag next
-
-      - name: Publish release candidate with npm Trusted Publishing
-        if: ${{ inputs.dry_run == false }}
-        run: npm publish --access public --tag next
+      - name: Publish with npm Trusted Publishing
+        env:
+          DIST_TAG: ${{ steps.release.outputs.dist_tag }}
+        run: npm publish --access public --tag "$DIST_TAG"
