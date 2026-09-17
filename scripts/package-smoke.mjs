@@ -31,9 +31,19 @@ try {
     readFileSync(join(directory, "node_modules/@nitoba/questions/package.json"), "utf8"),
   );
   assert.deepEqual(installed.dependencies, { ofetch: "1.5.0", ms: "2.1.3" });
-  assert.deepEqual(installed.peerDependencies, { zod: "^4.0.0", "@ai-sdk/gateway": "^4.0.85" });
-  assert.deepEqual(installed.peerDependenciesMeta, { "@ai-sdk/gateway": { optional: true } });
+  assert.deepEqual(installed.peerDependencies, {
+    zod: "^4.0.0",
+    "@ai-sdk/gateway": "^4.0.85",
+    ai: "^7.0.105",
+    "@ai-sdk/provider": "^4.0.17",
+  });
+  assert.deepEqual(installed.peerDependenciesMeta, {
+    "@ai-sdk/gateway": { optional: true },
+    ai: { optional: true },
+    "@ai-sdk/provider": { optional: true },
+  });
   assert.equal(existsSync(join(directory, "node_modules/@ai-sdk/gateway")), false);
+  assert.equal(existsSync(join(directory, "node_modules/ai")), false);
   assert.equal(existsSync(join(directory, "node_modules/@ai-sdk/provider")), false);
   const source = `
 import assert from "node:assert/strict";
