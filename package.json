@@ -1,13 +1,29 @@
 {
   "name": "@nitoba/questions",
-  "version": "0.1.0-alpha.6",
-  "description": "Typed semantic decisions and native Web Streams, without Effect.",
+  "version": "0.1.0-rc.1",
+  "description": "Typed semantic decisions for TypeScript with Zod, AI SDK providers, and native Web Streams.",
   "license": "MIT",
   "author": "Bruno Alves",
+  "homepage": "https://github.com/nitoba/questions#readme",
+  "bugs": {
+    "url": "https://github.com/nitoba/questions/issues"
+  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/nitoba/questions.git"
   },
+  "keywords": [
+    "ai",
+    "llm",
+    "typescript",
+    "zod",
+    "structured-output",
+    "classification",
+    "decision",
+    "web-streams",
+    "ai-sdk",
+    "jev"
+  ],
   "files": [
     "dist",
     "src",
@@ -73,7 +89,9 @@
     "test:package": "node scripts/package-smoke.mjs && node scripts/sdk-package-smoke.mjs && node scripts/generative-package-smoke.mjs",
     "test:package:native": "node scripts/package-smoke.mjs",
     "test:examples": "bun test ./examples/tests && node scripts/check-example-links.mjs",
-    "test:docs": "bun run build && node scripts/check-readme-examples.mjs && node scripts/check-example-links.mjs"
+    "test:docs": "bun run build && node scripts/check-readme-examples.mjs && node scripts/check-example-links.mjs",
+    "prepublishOnly": "bun run check",
+    "release:dry-run": "npm publish --dry-run --access public --tag next"
   },
   "dependencies": {
     "ms": "2.1.3",
@@ -112,6 +130,11 @@
     "@ai-sdk/provider": {
       "optional": true
     }
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/",
+    "tag": "next"
   },
   "engines": {
     "node": ">=22"
