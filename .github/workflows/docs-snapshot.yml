@@ -1,0 +1,21 @@
+name: Documentation source snapshot
+on:
+  push:
+    branches: [docs/generative-examples]
+    paths: [.github/workflows/docs-snapshot.yml]
+permissions:
+  contents: read
+jobs:
+  source:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - run: git archive --format=tar.gz HEAD > /tmp/questions-docs-source.tgz
+      - uses: actions/upload-artifact@v4
+        with:
+          name: questions-docs-source
+          path: /tmp/questions-docs-source.tgz
+          retention-days: 1
