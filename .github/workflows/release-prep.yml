@@ -30,6 +30,7 @@ jobs:
 
       - run: node .github/scripts/prepare-release.mjs
       - run: bun install --frozen-lockfile
+      - run: bun run format
       - run: bun run check
       - run: npm publish --dry-run --access public --tag next
 
