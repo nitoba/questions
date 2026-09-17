@@ -4,7 +4,7 @@ import { ValidationError } from "./errors.ts";
 import { json, probability, record, text } from "./internal/validation.ts";
 
 /** Natural-language guidance. Only these documented fields are sent to the provider. */
-export interface Hints {
+export type Hints = {
   /** Overrides the inferred question; descriptions and ancestor context remain available. */
   readonly instructions?: string;
   readonly title?: string;
@@ -13,7 +13,7 @@ export interface Hints {
   readonly examples?: readonly unknown[];
   /** Additional minimum confidence. Cannot weaken a parent or call-level minimum. */
   readonly confidence?: number;
-}
+};
 
 /**
  * Typed annotations for finite decisions. The schema is still the runtime validator.
