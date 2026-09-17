@@ -1,69 +1,73 @@
 # Releasing Questions
 
-This repository publishes `@nitoba/questions` as a public scoped package. Release candidates use the npm `next` dist-tag so a prerelease never replaces `latest` accidentally.
+This repository publishes `@nitoba/questions` as a public scoped package. Release candidates use the npm `next` dist-tag; stable releases use `latest`.
 
 ## Release checklist
 
 1. Confirm `main` is green on Node 22, Node 24, Bun, the minimum native Zod peer, installed-package smoke tests, README snippets, and documentation links.
 2. Update `package.json`, `CHANGELOG.md`, and any versioned documentation.
 3. Run `bun install --frozen-lockfile` and `bun run check`.
-4. Run `bun run release:dry-run`. This executes the same `prepublishOnly` validation and asks npm to build the publish tarball without uploading it.
-5. Inspect the dry-run file list and package metadata. Release candidates must publish with `access=public` and `tag=next`.
-6. Use the manual **Publish to npm** workflow and enter the exact version from `package.json`. Leave `dry_run=true` for validation. Set it to `false` only when the release is approved and npm Trusted Publishing is configured for `publish.yml`.
-7. Verify the package and dist-tags on npm after publication before creating downstream upgrade instructions.
+4. Run `bun run release:dry-run` and inspect the package contents.
+5. Merge or fast-forward the validated release commit to `main`.
+6. Create a Git tag whose name exactly matches `v` plus the package version, for example `v0.1.0-rc.2`.
+7. Push the tag. The **Publish to npm** workflow validates the tag and publishes automatically through npm Trusted Publishing/OIDC.
+8. Verify the package and npm dist-tags after publication before creating downstream upgrade instructions.
 
-## First manual publication
+## npm Trusted Publishing
 
-The first publication of `@nitoba/questions` can be performed manually with your normal npm authentication. The package must exist in the npm registry before a Trusted Publisher relationship can be configured.
-
-For `0.1.0-rc.1`, publish with the prerelease tag explicitly:
-
-```sh
-npm publish --access public --tag next
-```
-
-Do not publish the release candidate as `latest`.
-
-## Configure npm Trusted Publishing
-
-After the package exists on npm, open its **Settings → Trusted Publisher** page and add a GitHub Actions publisher with these exact values:
+The package already exists on npm. Configure its **Settings → Trusted Publisher** entry for GitHub Actions with these exact values:
 
 - Organization or user: `nitoba`
 - Repository: `questions`
 - Workflow filename: `publish.yml`
-- Environment: leave empty unless this workflow is later changed to use a GitHub environment
-- Allowed action: enable direct `npm publish` (staged publishing may also be enabled separately if desired)
+- Environment: leave empty unless the workflow later uses a GitHub environment
+- Allowed action: direct `npm publish`
 
-The workflow lives at `.github/workflows/publish.yml`, but npm expects only the filename `publish.yml` in the Trusted Publisher configuration. The values are case-sensitive.
+The workflow lives at `.github/workflows/publish.yml`, but npm expects only the filename `publish.yml`. Values are case-sensitive.
 
-The workflow uses a GitHub-hosted runner, Node 24/npm 11, and declares `id-token: write`. npm automatically exchanges the GitHub OIDC identity for short-lived publishing credentials when `npm publish` runs. No `NPM_TOKEN` or other long-lived npm write secret is used by the workflow.
-
-Trusted Publishing requires an npm CLI version that supports OIDC publishing; the Node 24 runner currently satisfies npm's minimum requirement. If the runner/toolchain changes, revalidate this before publishing.
+The workflow uses a GitHub-hosted runner, Node 24/npm 11, and declares `id-token: write`. npm exchanges the GitHub OIDC identity for short-lived publishing credentials when `npm publish` runs. No `NPM_TOKEN` or other long-lived npm write secret is used.
 
 Because this GitHub repository is private, npm provenance attestations are not generated even though Trusted Publishing itself works. Do not add `--provenance` or `publishConfig.provenance: true` unless the repository becomes public and the release workflow is revalidated.
 
-After OIDC publishing is verified, remove any obsolete long-lived npm publish token from GitHub Actions and, where appropriate, restrict traditional token-based publication in npm package settings.
+## Tag-triggered publication
 
-## Publishing through GitHub Actions
+The workflow runs on pushed tags matching `v*`, but publication continues only after stricter validation:
 
-The workflow is intentionally manual and never publishes from an ordinary push or pull request.
+- the tag must equal `v` plus the exact `package.json` version;
+- the tagged commit must be contained in `main`;
+- `x.y.z-rc.N` publishes with npm dist-tag `next`;
+- `x.y.z` publishes with npm dist-tag `latest`;
+- any other prerelease shape is rejected rather than assigned a dist-tag implicitly.
 
-1. Open **GitHub → Actions → Publish to npm**.
-2. Choose **Run workflow** on `main`.
-3. Enter the exact package version, for example `0.1.0-rc.2`.
-4. Run once with `dry_run=true` to rebuild and inspect the package without uploading it.
-5. Run again with `dry_run=false` to publish through npm Trusted Publishing/OIDC.
+For the current release candidate:
 
-The publish command is:
+```sh
+git switch main
+git pull --ff-only origin main
+git tag v0.1.0-rc.2
+git push origin v0.1.0-rc.2
+```
+
+Pushing the tag starts **Publish to npm** automatically. The workflow runs the package `prepublishOnly` gate through `npm publish`, so typechecks, lint, formatting, tests, build, installed-consumer checks, README snippets, and documentation links must pass before npm receives the package.
+
+For a release candidate the effective command is:
 
 ```sh
 npm publish --access public --tag next
 ```
 
-An `ENEEDAUTH` error usually means the npm Trusted Publisher values do not exactly match the GitHub repository/workflow, `id-token: write` is missing, or the package trust relationship has not been configured yet.
+For a stable version it is:
 
-## Promoting a stable release later
+```sh
+npm publish --access public --tag latest
+```
 
-`0.1.0-rc.2` is published under `next`. A future stable `0.1.0` should remove the prerelease suffix and the `publishConfig.tag` override (or change the publish command deliberately) so the stable package can become `latest` only after its own release validation.
+An `ENEEDAUTH` error usually means the npm Trusted Publisher values do not exactly match the GitHub repository/workflow or `id-token: write` is unavailable.
 
-Do not publish from an uncommitted working tree, do not reuse a version already present in the registry, and do not publish automatically from ordinary pushes or pull requests.
+## Stable release later
+
+A future stable `0.1.0` should update `package.json` to `0.1.0`, update the release notes, validate the exact tarball, merge that commit to `main`, and push `v0.1.0`. The workflow will publish it with `latest`.
+
+The existing `publishConfig.tag = "next"` is appropriate while the repository is on release candidates; the workflow explicitly passes `--tag latest` for a stable tag. It can be removed as part of the stable-release cleanup to keep package metadata self-explanatory.
+
+Do not reuse a version already present in the npm registry, do not tag a commit outside `main`, and do not publish from an uncommitted working tree.
