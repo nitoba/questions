@@ -225,7 +225,7 @@ export function createHttp(config: Config) {
             await emit(hooks.onRequest, context());
           },
           onRequestError: async ({ options, error }) => {
-            if (error.name === "AbortError") options.retry = false;
+            if (error?.name === "AbortError") options.retry = false;
             await beforeRetry(
               options,
               new ProviderError(
