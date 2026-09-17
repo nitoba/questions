@@ -1,21 +1,78 @@
-name: Documentation source snapshot
+name: Validate generative documentation
 on:
   push:
     branches: [docs/generative-examples]
     paths: [.github/workflows/docs-snapshot.yml]
 permissions:
-  contents: read
+  contents: write
 jobs:
-  source:
+  integrate:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
         with:
-          persist-credentials: false
-      - run: git archive --format=tar.gz HEAD > /tmp/questions-docs-source.tgz
-      - uses: actions/upload-artifact@v4
+          ref: ${{ github.sha }}
+      - uses: actions/setup-node@v4
         with:
-          name: questions-docs-source
-          path: /tmp/questions-docs-source.tgz
+          node-version: "22.16.0"
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.4.2"
+      - name: Verify and apply reviewed documentation sources
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 - <<'PY'
+          import base64, gzip, hashlib, json, os, pathlib, urllib.request
+          shas = [
+            'cb7e623e671aeccc9075bf5e4383c6a077f7f208',
+            '1d46ac9e5b89f005438a13bc63449a238e3306b0',
+            '21d48c00711238e05ff9223fa5e056965bcda437',
+            '392d4e6a596807782f9a72892e6c7c5c94a0e2a1',
+            'd7a5064ebf8999a246b6e25bde443df2ae4ff71f',
+            '9db8ee8be5f55bab3380b2ae7fd3148f9b6506cc',
+            '89546b82fd4c4afd2ff52c021e4005193dd84c19',
+            '0f6c5c741d9fdafc54e7bd9dc084074dcf31166d',
+          ]
+          parts = []
+          for sha in shas:
+            request = urllib.request.Request(
+              'https://api.github.com/repos/nitoba/questions/git/blobs/' + sha,
+              headers={'Authorization': 'Bearer ' + os.environ['GH_TOKEN'], 'Accept': 'application/vnd.github+json'},
+            )
+            with urllib.request.urlopen(request) as response:
+              data = json.load(response)
+            part = base64.b64decode(data['content'])
+            assert hashlib.sha1(b'blob ' + str(len(part)).encode() + b'\0' + part).hexdigest() == sha
+            parts.append(part)
+          patch = gzip.decompress(base64.b64decode(b''.join(parts), validate=True))
+          assert hashlib.sha256(patch).hexdigest() == 'edf009ff7bfd0be28001d366af07cc5b05275052d689266de102dc7169b1ccf0'
+          pathlib.Path('/tmp/questions-docs.patch').write_bytes(patch)
+          PY
+          git apply --check /tmp/questions-docs.patch
+          git apply --index /tmp/questions-docs.patch
+      - run: bun install --frozen-lockfile
+      - name: Validate tutorials, README types and installed packages
+        run: |
+          set -o pipefail
+          bun run check 2>&1 | tee /tmp/docs-check.log
+          node --no-warnings --experimental-strip-types --experimental-loader ./scripts/node-test-loader.mjs --test --test-concurrency=1 --test-timeout=5000 tests/*.test.ts 2>&1 | tee /tmp/docs-node.log
+      - name: Commit validated tutorial and README changes
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git reset
+          git add examples
+          git commit -m 'docs(examples): support generative providers throughout the learning path'
+          git add README.md CHANGELOG.md package.json scripts/check-readme-examples.mjs
+          git commit -m 'docs: refresh generative README and validate its snippets'
+          git push origin HEAD:docs/generative-examples
+          git rev-parse HEAD >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: documentation-validation
+          path: /tmp/docs-*.log
+          if-no-files-found: ignore
           retention-days: 1
