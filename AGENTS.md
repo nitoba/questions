@@ -1,6 +1,7 @@
 # Working on Questions
 
-- Keep the runtime dependency-free and provider-neutral. Do not import Effect, Node, or Bun in src.
+- Keep the runtime provider-neutral. Zod 4 is a peer dependency; import only zod/v4/core for schema integration. Keep the streams and provider subpaths independent of Zod. Do not import Effect, Node, or Bun in src.
+- Preserve schema output inference. Validate provider evidence before Zod refinements/transforms; unsupported schemas fail before inference. Never treat Zod as an unsafe result cast.
 - Use Bun 1.4.2, TypeScript 7, Oxlint, Oxfmt and tsdown. Run `bun run check` before delivery.
 - New public functions and overloads require JSDoc, runtime tests, and type-contract tests where inference matters.
 - Keep a raw Web Streams escape hatch. Do not add fibers, a scheduler runtime, or pretend Promises carry typed error channels.

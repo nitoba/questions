@@ -1,5 +1,7 @@
 /** Typed semantic decisions, with ordinary promises and native Web Streams. */
 export * as Questions from "./questions.ts";
+export * as Schema from "./schema.ts";
+export { SchemaValidationError } from "./schema.ts";
 export * as Question from "./question.ts";
 export * as Answer from "./answer.ts";
 export * as Decision from "./decision.ts";

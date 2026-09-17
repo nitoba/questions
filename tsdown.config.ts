@@ -1,7 +1,7 @@
 import { defineConfig } from "tsdown";
 
 export default defineConfig({
-  entry: ["src/index.ts", "src/streams.ts", "src/providers/jev.ts"],
+  entry: ["src/index.ts", "src/streams.ts", "src/schema.ts", "src/providers/jev.ts"],
   format: "esm",
   platform: "neutral",
   target: "es2023",

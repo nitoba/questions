@@ -1,3 +1,4 @@
+import * as Schema from "./schema.ts";
 import * as Question from "./question.ts";
 import * as Answer from "./answer.ts";
 import { requireConfidence } from "./decision.ts";
@@ -116,17 +117,32 @@ export class BoundQuestions {
   }
 
   /**
-   * Evaluate independent questions in one request and return their plain typed values.
+   * Evaluate a Zod schema in one request, validate asynchronously, and infer its output.
+   * Descriptions, metadata and Schema annotations guide the finite decision compiler.
+   * Plain question batches remain supported; no caller-supplied result cast is needed.
    * @example
    * const { blocked, team } = await q.ask({
    *   blocked: "Is production blocked?",
    *   team: Question.choice("Which team?", { billing: "Payments", support: "Bugs" }),
    * });
    */
+  async ask<S extends Schema.Type>(schema: S, options?: Options): Promise<Schema.Output<S>>;
+  /** Existing question batches keep their literal-key inference and behavior. */
   async ask<const B extends Question.Batch>(
     batch: B,
-    options: Options = {},
-  ): Promise<Question.Values<B>> {
+    options?: Options,
+  ): Promise<Question.Values<B>>;
+  async ask(batch: Question.Batch | Schema.Type, options: Options = {}): Promise<unknown> {
+    if (Schema.isSchema(batch)) {
+      if (options.confidence !== undefined) probability(options.confidence, "confidence.minimum");
+      options.signal?.throwIfAborted();
+      const compiled = Schema.compile(batch);
+      const result =
+        Object.keys(compiled.questions).length === 0
+          ? undefined
+          : await this.evidence(compiled.questions, options);
+      return compiled.parse(result, options);
+    }
     if (options.confidence !== undefined) probability(options.confidence, "confidence.minimum");
     const result = await this.evidence(batch, options);
     return Object.freeze(
@@ -143,7 +159,7 @@ export class BoundQuestions {
           return [key, projected(answer)];
         }),
       ),
-    ) as Question.Values<B>;
+    ) as Question.Values<Question.Batch>;
   }
 
   /** Return the most likely boolean. An exact tie favors true; gate confidence to reject ties. */
@@ -232,11 +248,15 @@ export class EachQuestions {
     this.#items = Object.freeze(items.map((item) => (item === null ? null : state(item))));
   }
 
-  /** Ask each question about each item, with numeric transport IDs that cannot collide with user keys. */
+  /** Evaluate one schema per item in a single request and validate each result in input order. */
+  async ask<S extends Schema.Type>(schema: S, options?: Options): Promise<Schema.Output<S>[]>;
+  /** Existing per-item question batches preserve literal-key inference. */
   async ask<const B extends Question.Batch>(
     batch: B,
-    options: Options = {},
-  ): Promise<Question.Values<B>[]> {
+    options?: Options,
+  ): Promise<Question.Values<B>[]>;
+  async ask(batch: Question.Batch | Schema.Type, options: Options = {}): Promise<unknown[]> {
+    if (Schema.isSchema(batch)) return this.#askSchema(batch, options);
     const questions = Object.entries(Question.normalize(batch));
     if (options.confidence !== undefined) probability(options.confidence, "confidence.minimum");
     options.signal?.throwIfAborted();
@@ -260,8 +280,52 @@ export class EachQuestions {
               values[`i${itemIndex}q${questionIndex}`],
             ]),
           ),
-        ) as Question.Values<B>,
+        ) as Question.Values<Question.Batch>,
     );
+  }
+
+  async #askSchema<S extends Schema.Type>(
+    schema: S,
+    options: Options,
+  ): Promise<Schema.Output<S>[]> {
+    if (options.confidence !== undefined) probability(options.confidence, "confidence.minimum");
+    options.signal?.throwIfAborted();
+    const compiled = Schema.compile(schema);
+    const questions = Object.entries(compiled.questions);
+    if (this.#items.length === 0) return [];
+    const flattened = Object.fromEntries(
+      this.#items.flatMap((_, itemIndex) =>
+        questions.map(([, question], questionIndex) => [
+          `i${itemIndex}q${questionIndex}`,
+          { ...question, instructions: `About item${itemIndex}: ${question.instructions}` },
+        ]),
+      ),
+    );
+    const context = Object.fromEntries(this.#items.map((item, index) => [`item${index}`, item]));
+    const evaluation =
+      questions.length === 0
+        ? undefined
+        : await this.#client.about(context).evidence(flattened, options);
+    const results: Schema.Output<S>[] = [];
+    // Sequential parsing bounds async user callbacks; all inference still uses one request.
+    for (let itemIndex = 0; itemIndex < this.#items.length; itemIndex++) {
+      options.signal?.throwIfAborted();
+      const itemEvidence =
+        evaluation === undefined
+          ? undefined
+          : {
+              model: evaluation.model,
+              usage: evaluation.usage,
+              answers: Object.fromEntries(
+                questions.map(([key], questionIndex) => [
+                  key,
+                  evaluation.answers[`i${itemIndex}q${questionIndex}`],
+                ]),
+              ),
+            };
+      results.push(await compiled.parse(itemEvidence, options));
+    }
+    return results;
   }
 
   /** Ask the same yes/no question about all items in one request. */
