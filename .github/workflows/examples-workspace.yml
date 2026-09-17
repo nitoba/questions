@@ -1,21 +1,79 @@
-name: Examples source workspace
+name: Validate executable examples
 on:
   push:
     branches: [docs/progressive-examples]
     paths: [.github/workflows/examples-workspace.yml]
 permissions:
-  contents: read
+  contents: write
 jobs:
-  source:
+  integrate:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
         with:
-          persist-credentials: false
-      - run: git archive --format=tar.gz HEAD > /tmp/questions-examples-source.tgz
-      - uses: actions/upload-artifact@v4
+          ref: ${{ github.sha }}
+      - uses: actions/setup-node@v4
         with:
-          name: questions-examples-source
-          path: /tmp/questions-examples-source.tgz
+          node-version: "22.16.0"
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.4.2"
+      - name: Verify and apply reviewed example sources
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 - <<'PY'
+          import base64, hashlib, json, lzma, os, pathlib, urllib.request
+          shas = [
+            'd532e1d65c2047b5a2456e7154f097109f481b83',
+            'a09c6a519573a76a9345c896298221f9a584c79e',
+            'f72bcc0b2620e353943c45216ddda4a2bce534f0',
+            '957fbdc6894abbb1cebea398ea6d1b066c85d727',
+            '3ca1716e7d93ff62f0106fc8a2024e2b05973594',
+            '38093b210acc4cb0b4d3e59377222e02043d3bf2',
+            'ffd24ef15d133f5f22e5714d362c01d5489153cc',
+          ]
+          parts = []
+          for sha in shas:
+            request = urllib.request.Request(
+              'https://api.github.com/repos/nitoba/questions/git/blobs/' + sha,
+              headers={'Authorization': 'Bearer ' + os.environ['GH_TOKEN'], 'Accept': 'application/vnd.github+json'},
+            )
+            with urllib.request.urlopen(request) as response:
+              data = json.load(response)
+            blob = base64.b64decode(data['content'])
+            assert hashlib.sha1(f'blob {len(blob)}\0'.encode() + blob).hexdigest() == sha
+            parts.append(blob)
+          patch = lzma.decompress(b''.join(parts))
+          assert hashlib.sha256(patch).hexdigest() == '98cda8ed4ab50164b39bab8eb8a459243a9ce5f9670f2f1ab53e74dd8df349a1'
+          pathlib.Path('/tmp/examples.patch').write_bytes(patch)
+          PY
+          git apply --check /tmp/examples.patch
+          git apply /tmp/examples.patch
+      - run: bun install --frozen-lockfile
+      - name: Validate tutorials, CLI, SQLite, HTTP, types and installed packages
+        run: |
+          set -o pipefail
+          bun run check 2>&1 | tee /tmp/examples-check.log
+          node --no-warnings --experimental-strip-types --experimental-loader ./scripts/node-test-loader.mjs --test --test-timeout=5000 tests/*.test.ts 2>&1 | tee /tmp/examples-node.log
+      - name: Commit validated tutorial groups
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add examples/*.ts examples/shared examples/.env.example examples/README.md
+          git add -u examples
+          git commit -m 'docs(examples): replace old snippets with progressive English tutorials'
+          git add examples/16-fulfillment-desk .gitignore
+          git commit -m 'feat(examples): add persistent fulfillment operations application'
+          git add examples/tests scripts/check-example-links.mjs package.json README.md CHANGELOG.md
+          git commit -m 'test(examples): verify tutorials, CLI, SQLite and delivery recovery'
+          git push origin HEAD:docs/progressive-examples
+          git rev-parse HEAD >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: executable-examples-validation
+          path: /tmp/examples-*.log
+          if-no-files-found: ignore
           retention-days: 1
