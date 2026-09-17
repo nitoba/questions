@@ -5,15 +5,29 @@
   "type": "module",
   "license": "MIT",
   "author": "Bruno Alves",
-  "repository": { "type": "git", "url": "git+https://github.com/nitoba/questions.git" },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/nitoba/questions.git"
+  },
   "sideEffects": false,
-  "engines": { "node": ">=22" },
+  "engines": {
+    "node": ">=22"
+  },
   "packageManager": "bun@1.4.2",
   "types": "./dist/index.d.ts",
   "exports": {
-    ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js" },
-    "./streams": { "types": "./dist/streams.d.ts", "import": "./dist/streams.js" },
-    "./providers/jev": { "types": "./dist/providers/jev.d.ts", "import": "./dist/providers/jev.js" },
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./streams": {
+      "types": "./dist/streams.d.ts",
+      "import": "./dist/streams.js"
+    },
+    "./providers/jev": {
+      "types": "./dist/providers/jev.d.ts",
+      "import": "./dist/providers/jev.js"
+    },
     "./package.json": "./package.json"
   },
   "files": ["dist", "src", "README.md", "LICENSE"],
@@ -29,11 +43,11 @@
     "test:package": "node scripts/package-smoke.mjs"
   },
   "devDependencies": {
-    "@types/bun": "latest",
-    "typescript": "7.0.2",
-    "oxlint": "1.83.0",
+    "@types/bun": "1.4.2",
     "oxfmt": "0.66.0",
+    "oxlint": "1.83.0",
+    "publint": "0.3.24",
     "tsdown": "0.23.0",
-    "publint": "latest"
+    "typescript": "7.0.2"
   }
 }
