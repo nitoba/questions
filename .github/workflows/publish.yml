@@ -56,7 +56,6 @@ jobs:
             exit 1
           fi
 
-          git fetch origin main --depth=1
           RELEASE_COMMIT="$(git rev-parse HEAD)"
           if ! git merge-base --is-ancestor "$RELEASE_COMMIT" origin/main; then
             echo "Release tag must point to a commit contained in main." >&2
