@@ -19,7 +19,7 @@ jobs:
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: "1.4.2"
-      - run: bun install --frozen-lockfile && bun add --exact ms@4.0.0
+      - run: bun install --frozen-lockfile && bun add --exact ms@2.1.3 && bun add --dev --exact @types/ms@2.1.0
       - name: Export source and isolated toolchain
         run: |
           mkdir -p .validation-tools
