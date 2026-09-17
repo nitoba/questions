@@ -1,0 +1,32 @@
+name: Semantic DX workspace
+on:
+  push:
+    branches: [feat/semantic-dx]
+    paths: [.github/workflows/dx-workspace.yml]
+permissions:
+  contents: read
+jobs:
+  workspace:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22.16.0"
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.4.2"
+      - run: bun install --frozen-lockfile && bun add --exact ms@4.0.0
+      - name: Export source and isolated toolchain
+        run: |
+          mkdir -p .validation-tools
+          cp "$(command -v bun)" .validation-tools/bun
+          tar --exclude='./.git' -czf /tmp/questions-dx.tgz .
+      - uses: actions/upload-artifact@v4
+        with:
+          name: questions-dx-workspace
+          path: /tmp/questions-dx.tgz
+          retention-days: 1
