@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.0-rc.2
+
+- Republish the release candidate with the npm-first README that was added after `0.1.0-rc.1` had already been published.
+- Keep the runtime API unchanged; this release only aligns the npm package documentation and release metadata with the repository.
+- Publish through the existing `next` dist-tag and npm Trusted Publishing/OIDC workflow.
+
 ## 0.1.0-rc.1
 
 - Promote the tested alpha API to the first release candidate without adding new runtime features.

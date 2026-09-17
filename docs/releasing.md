@@ -50,7 +50,7 @@ The workflow is intentionally manual and never publishes from an ordinary push o
 
 1. Open **GitHub → Actions → Publish to npm**.
 2. Choose **Run workflow** on `main`.
-3. Enter the exact package version, for example `0.1.0-rc.1`.
+3. Enter the exact package version, for example `0.1.0-rc.2`.
 4. Run once with `dry_run=true` to rebuild and inspect the package without uploading it.
 5. Run again with `dry_run=false` to publish through npm Trusted Publishing/OIDC.
 
@@ -64,6 +64,6 @@ An `ENEEDAUTH` error usually means the npm Trusted Publisher values do not exact
 
 ## Promoting a stable release later
 
-`0.1.0-rc.1` is published under `next`. A future stable `0.1.0` should remove the prerelease suffix and the `publishConfig.tag` override (or change the publish command deliberately) so the stable package can become `latest` only after its own release validation.
+`0.1.0-rc.2` is published under `next`. A future stable `0.1.0` should remove the prerelease suffix and the `publishConfig.tag` override (or change the publish command deliberately) so the stable package can become `latest` only after its own release validation.
 
 Do not publish from an uncommitted working tree, do not reuse a version already present in the registry, and do not publish automatically from ordinary pushes or pull requests.

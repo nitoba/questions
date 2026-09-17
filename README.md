@@ -11,7 +11,7 @@ readable deadlines, explicit retries, replay and observability as your applicati
 No Effect dependency, service container or alternative execution runtime. Independently inspired
 by [effect-questions](https://github.com/saiashirwad/effect-questions).
 
-> **Release candidate:** this README describes the `0.1.0-rc.1` API. The public surface is now
+> **Release candidate:** this README describes the `0.1.0-rc.2` API. The public surface is now
 > frozen for the 0.1.0 release candidate; fixes and compatibility validation take priority over new
 > features. Decisions are finite classifications, not arbitrary JSON generation, factual guarantees
 > or authorization to execute business actions. See the [changelog](CHANGELOG.md) and

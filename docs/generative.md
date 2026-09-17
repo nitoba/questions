@@ -1,16 +1,16 @@
 # Generative decision providers
 
-Available in `0.1.0-rc.1`. Use an AI SDK language model to answer Questions' finite decisions
+Available in `0.1.0-rc.2`. Use an AI SDK language model to answer Questions' finite decisions
 with an internal prompt and structured JSON output. Gemini, Claude, GPT and Gateway language
 models share the same integration. The selected model must support the requested structured
 output; a provider's presence in the SDK does not guarantee every model supports it.
 
 ## Install only the integration you use
 
-For an installed local Questions tarball (or a published version once available):
+Install Questions from npm together with the optional AI SDK peers and the provider you use:
 
 ```sh
-bun add ./questions.tgz 'zod@^4.1.8' 'ai@^7.0.105' '@ai-sdk/provider@^4.0.17' '@ai-sdk/google@^4.0.74'
+bun add '@nitoba/questions@next' 'zod@^4.1.8' 'ai@^7.0.105' '@ai-sdk/provider@^4.0.17' '@ai-sdk/google@^4.0.74'
 ```
 
 Choose `@ai-sdk/anthropic`, `@ai-sdk/openai` or `@ai-sdk/gateway` instead of Google as needed.
