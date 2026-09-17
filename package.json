@@ -1,6 +1,6 @@
 {
   "name": "@nitoba/questions",
-  "version": "0.1.0-alpha.3",
+  "version": "0.1.0-alpha.4",
   "description": "Typed semantic decisions and native Web Streams, without Effect.",
   "license": "MIT",
   "author": "Bruno Alves",
@@ -64,6 +64,9 @@
     "check": "bun run typecheck && bun run lint && bun run format:check && bun test && bun run build && bun run test:package",
     "test:package": "node scripts/package-smoke.mjs && node scripts/sdk-package-smoke.mjs",
     "test:package:native": "node scripts/package-smoke.mjs"
+  },
+  "dependencies": {
+    "ofetch": "1.5.0"
   },
   "devDependencies": {
     "@ai-sdk/gateway": "4.0.85",

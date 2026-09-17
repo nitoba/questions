@@ -1,5 +1,6 @@
+import { packDependencies } from "./pack-dependencies.mjs";
 import assert from "node:assert/strict";
-import { mkdtempSync, readFileSync, writeFileSync, rmSync, realpathSync } from "node:fs";
+import { mkdtempSync, readFileSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { execFileSync } from "node:child_process";
@@ -8,23 +9,8 @@ import { fileURLToPath } from "node:url";
 const root = fileURLToPath(new URL("..", import.meta.url));
 const directory = mkdtempSync(join(tmpdir(), "questions-sdk-consumer-"));
 const tarball = join(directory, "questions.tgz");
-const overrides = {};
-function pack(name) {
-  if (Object.hasOwn(overrides, name)) return;
-  const location = realpathSync(join(root, "node_modules", name));
-  const manifest = JSON.parse(readFileSync(join(location, "package.json"), "utf8"));
-  const archive = join(directory, `${name.replaceAll("/", "-")}.tgz`);
-  execFileSync("bun", ["pm", "pack", "--ignore-scripts", "--filename", archive], {
-    cwd: location,
-    stdio: "pipe",
-  });
-  overrides[name] = `file:${archive}`;
-  for (const dependency of Object.keys(manifest.dependencies ?? {})) pack(dependency);
-}
 try {
-  // Pack the installed, pinned SDK and its real dependency graph, never a mock module.
-  pack("zod");
-  pack("@ai-sdk/gateway");
+  const overrides = packDependencies(root, directory, ["zod", "ofetch", "@ai-sdk/gateway"]);
   execFileSync("bun", ["pm", "pack", "--filename", tarball], { cwd: root, stdio: "pipe" });
   writeFileSync(
     join(directory, "package.json"),
@@ -57,6 +43,9 @@ assert.equal(evidence.usage.outputTokens, undefined);
 const official = createGateway({ apiKey:"test", fetch:fetcher }).evaluationModel("typesafe-ai/jev");
 assert.equal(await Questions.create({ model:AISDK.create({model:official}) }).about("x").is("OK?"), true);
 assert.equal(calls, 3);
+const recorded = await client.about("x").run(z.object({ ok: z.boolean() }));
+assert.deepEqual((await recorded.replay()).value, { ok:true });
+assert.equal(calls, 5);
 console.log("Installed Gateway SDK and schema/bridge runtime passed");
 `;
   writeFileSync(join(directory, "consumer.mjs"), source);

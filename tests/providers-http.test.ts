@@ -175,10 +175,12 @@ test("pre-abort skips HTTP and late responses are closed", async () => {
   let calls = 0;
   let canceled = false;
   const pending = deferred<Response>();
+  const started = deferred<void>();
   const model = TypeSafe.create({
     apiKey: "key",
     fetch: transport(() => {
       calls++;
+      started.resolve();
       return pending.promise;
     }),
   });
@@ -194,6 +196,7 @@ test("pre-abort skips HTTP and late responses are closed", async () => {
   assert.equal(calls, 0);
   const controller = new AbortController();
   const result = model.evaluate(request, { signal: controller.signal });
+  await started.promise; // ofetch async onRequest hooks precede native dispatch.
   controller.abort(stop);
   await assert.rejects(result, (e) => e === stop);
   pending.resolve(

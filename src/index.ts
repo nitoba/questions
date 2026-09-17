@@ -49,3 +49,17 @@ export type {
   CallContext,
   Awaitable,
 } from "./types.ts";
+
+export type { Execution, Prepared, ReplayOptions } from "./execution.ts";
+export type {
+  Retry,
+  RetryOptions,
+  Hooks as HttpHooks,
+  AttemptContext,
+  ResponseContext,
+  FailureContext,
+  RetryContext,
+  RetryEvent,
+  Hook,
+  HooksList,
+} from "./http.ts";

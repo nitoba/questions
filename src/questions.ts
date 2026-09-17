@@ -1,5 +1,7 @@
 import * as Schema from "./schema.ts";
 import * as Question from "./question.ts";
+import { prepare as prepareExecution } from "./execution.ts";
+import type { Execution, Prepared } from "./execution.ts";
 import * as Answer from "./answer.ts";
 import { requireConfidence } from "./decision.ts";
 import type { Evaluation, QuestionModel } from "./model.ts";
@@ -25,17 +27,6 @@ export type Candidates = readonly unknown[] | Readonly<Record<string, unknown>>;
 export type Candidate<C extends Candidates> = C extends readonly (infer T)[] ? T : C[keyof C];
 /** Predicate that can be passed directly to asynchronous stream operators. */
 export type Predicate = (context: State, options?: RunOptions) => Promise<boolean>;
-
-function projected(answer: Answer.AnyAnswer): boolean | string | number {
-  switch (answer.type) {
-    case "boolean":
-      return answer.probability >= 0.5;
-    case "choice":
-      return answer.choice;
-    case "score":
-      return answer.score;
-  }
-}
 
 /** An immutable client with explicit model injection and no global runtime. */
 export class QuestionsClient {
@@ -133,33 +124,59 @@ export class BoundQuestions {
     options?: Options,
   ): Promise<Question.Values<B>>;
   async ask(batch: Question.Batch | Schema.Type, options: Options = {}): Promise<unknown> {
-    if (Schema.isSchema(batch)) {
-      if (options.confidence !== undefined) probability(options.confidence, "confidence.minimum");
-      options.signal?.throwIfAborted();
-      const compiled = Schema.compile(batch);
-      const result =
-        Object.keys(compiled.questions).length === 0
-          ? undefined
-          : await this.evidence(compiled.questions, options);
-      return compiled.parse(result, options);
-    }
-    if (options.confidence !== undefined) probability(options.confidence, "confidence.minimum");
-    const result = await this.evidence(batch, options);
-    return Object.freeze(
-      Object.fromEntries(
-        Object.entries(result.answers).map(([key, answer]) => {
-          if (options.confidence !== undefined) {
-            const question = batch[key]!;
-            requireConfidence(
-              answer,
-              options.confidence,
-              typeof question === "string" ? question : question.instructions,
-            );
-          }
-          return [key, projected(answer)];
-        }),
-      ),
-    ) as Question.Values<Question.Batch>;
+    const run = { ...options };
+    return (await (await prepareExecution(this.#model, this.#source, batch, run)).run(run)).value;
+  }
+
+  /**
+   * Evaluate once and retain the validated value, evidence and an explicit replay operation.
+   * Unlike ask(), the result exposes replay(), which makes a NEW potentially paid inference.
+   * It captures context once; replay never invokes branch handlers or rereads a live source.
+   * @example
+   * const result = await q.run(z.object({ urgent: z.boolean().describe("Is it urgent?") }));
+   * console.log(result.value.urgent, result.evidence?.usage);
+   * const repeated = await result.replay({ signal: AbortSignal.timeout(10_000) });
+   */
+  async run<S extends Schema.Type>(
+    schema: S,
+    options?: Options,
+  ): Promise<Execution<Schema.Output<S>>>;
+  /** Question batches retain their exact literal keys in both value and evidence. */
+  async run<const B extends Question.Batch>(
+    batch: B,
+    options?: Options,
+  ): Promise<Execution<Question.Values<B>, B>>;
+  async run(
+    batch: Question.Batch | Schema.Type,
+    options: Options = {},
+  ): Promise<Execution<unknown>> {
+    const run = { ...options };
+    return (await prepareExecution(this.#model, this.#source, batch, run)).run(run);
+  }
+
+  /**
+   * Capture questions and one context snapshot without inference or user parsing callbacks.
+   * Keep the prepared handle to run again after a failure. Each run has its own cancellation.
+   * The preparation signal covers context acquisition only, not future runs.
+   * @example
+   * const prepared = await q.prepare(schema);
+   * const first = await prepared.run();
+   * const second = await prepared.run({ model: anotherProvider });
+   */
+  async prepare<S extends Schema.Type>(
+    schema: S,
+    options?: Options,
+  ): Promise<Prepared<Schema.Output<S>>>;
+  /** Plain question batches have the same snapshot and replay behavior as schemas. */
+  async prepare<const B extends Question.Batch>(
+    batch: B,
+    options?: Options,
+  ): Promise<Prepared<Question.Values<B>, B>>;
+  async prepare(
+    batch: Question.Batch | Schema.Type,
+    options: Options = {},
+  ): Promise<Prepared<unknown>> {
+    return prepareExecution(this.#model, this.#source, batch, options);
   }
 
   /** Return the most likely boolean. An exact tie favors true; gate confidence to reject ties. */
@@ -314,8 +331,7 @@ export class EachQuestions {
         evaluation === undefined
           ? undefined
           : {
-              model: evaluation.model,
-              usage: evaluation.usage,
+              ...evaluation,
               answers: Object.fromEntries(
                 questions.map(([key], questionIndex) => [
                   key,

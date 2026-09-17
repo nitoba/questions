@@ -31,18 +31,26 @@ export function cancellation(parent?: AbortSignal, timeoutMs?: number) {
 /** Observe late rejection while letting cancellation settle a non-cooperative promise promptly. */
 export function abortable<T>(value: T | PromiseLike<T>, signal: AbortSignal): Promise<T> {
   return new Promise<T>((resolve, reject) => {
-    const abort = () => reject(signal.reason);
+    const abort = () => {
+      signal.removeEventListener("abort", abort);
+      reject(signal.reason);
+    };
     if (signal.aborted) {
       Promise.resolve(value).catch(() => {});
       reject(signal.reason);
       return;
     }
     signal.addEventListener("abort", abort, { once: true });
-    Promise.resolve(value)
-      .then(resolve, reject)
-      .finally(() => {
+    Promise.resolve(value).then(
+      (result) => {
         signal.removeEventListener("abort", abort);
-      });
+        resolve(result);
+      },
+      (error) => {
+        signal.removeEventListener("abort", abort);
+        reject(error);
+      },
+    );
   });
 }
 
@@ -56,6 +64,7 @@ export function sleep(ms: number, signal: AbortSignal): Promise<void> {
     const timer = setTimeout(finish, ms);
     const abort = () => {
       clearTimeout(timer);
+      signal.removeEventListener("abort", abort);
       reject(signal.reason);
     };
     signal.addEventListener("abort", abort, { once: true });

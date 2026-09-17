@@ -1,3 +1,4 @@
+import { packDependencies } from "./pack-dependencies.mjs";
 import assert from "node:assert/strict";
 import { existsSync, mkdtempSync, readFileSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -8,7 +9,7 @@ import { fileURLToPath } from "node:url";
 const root = fileURLToPath(new URL("..", import.meta.url));
 const directory = mkdtempSync(join(tmpdir(), "questions-consumer-"));
 const tarball = join(directory, "questions.tgz");
-const zodTarball = join(directory, "zod.tgz");
+
 try {
   // Test the actual distributable, not a source import or workspace symlink.
   execFileSync("bun", ["pm", "pack", "--filename", tarball], {
@@ -16,17 +17,12 @@ try {
     stdio: "pipe",
     encoding: "utf8",
   });
+  const overrides = packDependencies(root, directory, ["zod", "ofetch"]);
   writeFileSync(
     join(directory, "package.json"),
-    JSON.stringify({ private: true, type: "module", overrides: { zod: `file:${zodTarball}` } }),
+    JSON.stringify({ private: true, type: "module", overrides }),
   );
-  // Package the installed peer too: consumers remain isolated and the smoke test needs no network.
-  execFileSync("bun", ["pm", "pack", "--ignore-scripts", "--filename", zodTarball], {
-    cwd: join(root, "node_modules/zod"),
-    stdio: "pipe",
-    encoding: "utf8",
-  });
-  execFileSync("bun", ["add", tarball, zodTarball], {
+  execFileSync("bun", ["add", tarball, overrides.zod], {
     cwd: directory,
     stdio: "pipe",
     encoding: "utf8",
@@ -34,7 +30,7 @@ try {
   const installed = JSON.parse(
     readFileSync(join(directory, "node_modules/@nitoba/questions/package.json"), "utf8"),
   );
-  assert.equal(Object.keys(installed.dependencies ?? {}).length, 0);
+  assert.deepEqual(installed.dependencies, { ofetch: "1.5.0" });
   assert.deepEqual(installed.peerDependencies, { zod: "^4.0.0", "@ai-sdk/gateway": "^4.0.85" });
   assert.deepEqual(installed.peerDependenciesMeta, { "@ai-sdk/gateway": { optional: true } });
   assert.equal(existsSync(join(directory, "node_modules/@ai-sdk/gateway")), false);
@@ -66,6 +62,18 @@ await assert.rejects(Questions.create({ model }).about("x").ask(z.boolean().refi
 assert.equal(Question.choice("Route?", { a: "A", b: "B" }).type, "choice");
 assert.deepEqual(await from([1, 2, 3]).map(n => n * 2).toArray(), [2, 4, 6]);
 assert.equal(Decision.minimizeLoss(Answer.fromBoolean({type:"boolean",probability:0.9}), {act:1}).choice, "act");
+const prepared = await Questions.create({ model }).about("x").prepare(schema);
+const executed = await prepared.run();
+assert.deepEqual((await executed.replay()).value, { state:"yes" });
+let httpAttempts = 0;
+const overHttp = Questions.create({ model:TypeSafe.create({apiKey:"test", retry:{maxRetries:1,delayMs:0}, fetch:async (_,init) => {
+  httpAttempts++;
+  if (httpAttempts===1) return new Response(null,{status:429});
+  const request = JSON.parse(init.body);
+  return Response.json({ model:"test", usage:{input_tokens:1,output_tokens:1}, answers:Object.fromEntries(Object.keys(request.questions).map(key=>[key,{type:"noul",noul:0.9}])) });
+}}) });
+assert.equal(await overHttp.about("x").is("OK?"),true);
+assert.equal(httpAttempts,2);
 console.log("Installed package runtime smoke passed");
 `;
   writeFileSync(join(directory, "consumer.mjs"), source);
@@ -83,6 +91,11 @@ import * as TypeSafe from "@nitoba/questions/providers/typesafe";
 import * as SystemOne from "@nitoba/questions/providers/system-one";
 import * as AISDK from "@nitoba/questions/providers/ai-sdk";
 declare const model: QuestionModel;
+const prepared = await Questions.create({model}).about("x").prepare(z.object({ok:z.boolean()}).readonly());
+const executed = await prepared.run();
+const typedReplay: boolean = (await executed.replay()).value.ok;
+// @ts-expect-error readonly schema output must survive replay
+executed.value.ok = false;
 const result = await Questions.create({ model }).about("x").ask({ route: Question.choice("Which?", {a:"A",b:"B"}) });
 const route: "a" | "b" = result.route;
 // @ts-expect-error literal keys must survive packaging
@@ -98,7 +111,8 @@ void parsed.route;
 parsed.id = "a";
 const probability = annotate(z.number(), { kind: "probability" });
 const plan = compile(schema);
-const direct: QuestionModel = TypeSafe.create({ apiKey: "test" });
+const direct: QuestionModel = TypeSafe.create({ apiKey: "test", retry:{maxRetries:2,statusCodes:[503],delayMs:({attempt})=>attempt*100},
+  hooks:{ onRetry({delayMs, nextAttempt}) { const value:number=delayMs+nextAttempt; void value; } } });
 const custom: QuestionModel = SystemOne.create({ baseURL: "http://localhost:9000", model: "local" });
 // @ts-expect-error arbitrary URLs require a protocol model ID
 SystemOne.create({ baseURL: "http://localhost:9000" });
@@ -148,6 +162,21 @@ assert.equal(typeof AISDK.create, "function");
   );
   for (const runtime of ["node", "bun"])
     execFileSync(runtime, ["subpaths.mjs"], { cwd: directory, stdio: "inherit" });
+  // Streams and the structural SDK bridge must not acquire the new HTTP runtime dependency.
+  for (const name of ["ofetch", "destr", "node-fetch-native", "ufo"])
+    rmSync(join(directory, "node_modules", name), { recursive: true, force: true });
+  writeFileSync(
+    join(directory, "no-http.mjs"),
+    `
+import assert from "node:assert/strict";
+import { from } from "@nitoba/questions/streams";
+import * as AISDK from "@nitoba/questions/providers/ai-sdk";
+assert.deepEqual(await from([1]).toArray(), [1]);
+assert.equal(typeof AISDK.create,"function");
+`,
+  );
+  for (const runtime of ["node", "bun"])
+    execFileSync(runtime, ["no-http.mjs"], { cwd: directory, stdio: "inherit" });
   console.log("Packed declarations, schema peer integration and independent subpaths passed");
 } finally {
   rmSync(directory, { recursive: true, force: true });

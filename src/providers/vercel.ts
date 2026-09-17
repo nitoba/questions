@@ -1,15 +1,10 @@
 import { createGateway, type GatewayProviderSettings } from "@ai-sdk/gateway";
 import type { QuestionModel } from "../model.ts";
 import { ProviderError, ValidationError } from "../errors.ts";
-import { integer, text } from "../internal/validation.ts";
-import {
-  apiKey,
-  baseURL,
-  customHeaders,
-  discard,
-  fetchResponse,
-  readText,
-} from "../internal/http.ts";
+import { text } from "../internal/validation.ts";
+import { apiKey, baseURL, customHeaders } from "../internal/http.ts";
+import type { Retry, Hooks } from "../http.ts";
+import { createHttp, HttpHookError } from "../internal/http-client.ts";
 import * as AISDK from "./ai-sdk.ts";
 
 /** Official Vercel AI Gateway evaluation, with explicit authentication and bounded HTTP. */
@@ -28,6 +23,9 @@ export interface Options extends Pick<
   readonly fetch?: typeof globalThis.fetch;
   /** Successful response body limit in bytes, before the SDK parses JSON. Default: 1 MiB. */
   readonly maxResponseBytes?: number;
+  /** HTTP retries only; disabled by default. */
+  readonly retry?: Retry;
+  readonly hooks?: Hooks;
 }
 
 function headerValue(value: string, path: string): string {
@@ -40,11 +38,12 @@ function headerValue(value: string, path: string): string {
 }
 
 /** Preserve our sanitized HTTP errors through SDK wrappers without returning sensitive bodies. */
-function transportError(error: unknown): ProviderError {
+function transportError(error: unknown): unknown {
   let current = error;
   const seen = new Set<unknown>();
   while (current instanceof Error && !seen.has(current)) {
-    if (current instanceof ProviderError) return current;
+    if (current instanceof HttpHookError) return current.cause;
+    if (current instanceof ProviderError || current instanceof ValidationError) return current;
     seen.add(current);
     current = current.cause;
   }
@@ -54,7 +53,7 @@ function transportError(error: unknown): ProviderError {
 /**
  * Create a Questions provider using the official @ai-sdk/gateway evaluation model.
  * This optional subpath does not make the AI SDK a dependency of the package root.
- * One SDK doEvaluate call per evaluation; no automatic client retries or model fallbacks.
+ * One SDK doEvaluate call per evaluation; HTTP retries are explicit and disabled by default.
  * The Gateway service may apply its own configured routing policy.
  *
  * @example
@@ -86,30 +85,16 @@ export function create(options: Options): QuestionModel {
     options.teamIdOrSlug === undefined
       ? undefined
       : headerValue(text(options.teamIdOrSlug, "teamIdOrSlug"), "teamIdOrSlug");
-  const limit = integer(options.maxResponseBytes ?? 1_048_576, 1, "maxResponseBytes");
-  const fetcher = options.fetch ?? globalThis.fetch;
-  if (typeof fetcher !== "function") throw new ValidationError("fetch is unavailable", "fetch");
+  const send = createHttp({ ...options, provider: "Vercel" });
   const guardedFetch = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
-    const signal = init?.signal ?? new AbortController().signal;
-    let response: Response;
-    try {
-      response = await fetchResponse(fetcher, input, init ?? {}, signal);
-    } catch {
-      if (signal.aborted) throw signal.reason;
-      throw new ProviderError("Vercel", "network", "Unable to reach Vercel");
-    }
-    if (!response.ok) {
-      discard(response.body);
-      throw new ProviderError("Vercel", "http", `Vercel returned HTTP ${response.status}`, {
-        status: response.status,
-      });
-    }
-    const content = await readText(response, limit, signal, "Vercel");
-    const responseHeaders = new Headers(response.headers);
-    // fetch already decoded content; these values no longer describe the new body.
-    responseHeaders.delete("content-length");
-    responseHeaders.delete("content-encoding");
-    return new Response(content, { status: response.status, headers: responseHeaders });
+    if (init?.method !== "POST" || typeof init.body !== "string")
+      throw new ValidationError("expected the SDK's replayable JSON POST body", "request");
+    const response = await send(
+      String(input),
+      { headers: new Headers(init.headers), body: init.body },
+      init.signal ? { signal: init.signal } : {},
+    );
+    return new Response(response.content, { status: response.status, headers: response.headers });
   };
   const gateway = createGateway({
     apiKey: key,
