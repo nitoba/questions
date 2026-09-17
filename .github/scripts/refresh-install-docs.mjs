@@ -35,7 +35,7 @@ function stripInstallVersions(line) {
     const escaped = pkg.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
     output = output
       .replace(new RegExp(`'${escaped}(?:@(?:next|latest|[~^]?[0-9][^']*))?'`, "g"), pkg)
-      .replace(new RegExp(`\"${escaped}(?:@(?:next|latest|[~^]?[0-9][^\"]*))?\"`, "g"), pkg)
+      .replace(new RegExp(`"${escaped}(?:@(?:next|latest|[~^]?[0-9][^"]*))?"`, "g"), pkg)
       .replace(new RegExp(`${escaped}@(?:next|latest|[~^]?[0-9][^\\s]*)`, "g"), pkg);
   }
 
@@ -76,8 +76,8 @@ for (const file of files) {
       "This integration targets the **experimental Evaluation V4** contract. Install `@ai-sdk/gateway` and `zod` by name and let your package manager resolve compatible current releases. Questions targets Zod 4.",
     )
     .replace(
-      /`probabilitySource: \"estimated\"`\. Install its optional `ai` and `@ai-sdk\/provider` peers and the\nchosen SDK provider\./g,
-      "`probabilitySource: \"estimated\"`. Install `ai` and the chosen SDK provider; `@ai-sdk/provider` does not need to be installed directly by the consumer.",
+      /`probabilitySource: "estimated"`\. Install its optional `ai` and `@ai-sdk\/provider` peers and the\nchosen SDK provider\./g,
+      '`probabilitySource: "estimated"`. Install `ai` and the chosen SDK provider; `@ai-sdk/provider` does not need to be installed directly by the consumer.',
     )
     .replace(
       /The current integration uses AI SDK 7 LanguageModelV4 and Zod >=4\.1\.8 within v4; the native\npackage still supports Zod 4\.0\.0\./g,
