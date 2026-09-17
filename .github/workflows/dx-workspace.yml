@@ -1,4 +1,4 @@
-name: Validate semantic DX implementation
+name: Validate semantic DX contracts
 on:
   push:
     branches: [feat/semantic-dx]
@@ -19,23 +19,22 @@ jobs:
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: "1.4.2"
-      - name: Install published duration parser and existing toolchain
-        run: bun install --frozen-lockfile && bun add --exact ms@2.1.3 && bun add --dev --exact @types/ms@2.1.0
-      - name: Verify and apply reviewed source patches
+      - run: bun install --frozen-lockfile
+      - name: Verify and apply reviewed test and documentation patches
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           python3 - <<'PY'
           import base64, hashlib, json, os, pathlib, urllib.request
           shas = [
-            '721465d1b5551addb159cdd36bdfa075535e53c1',
-            '4c6204cb3e408a80564bd107c3cb6453565300f1',
-            'bed8893aa2c8443c93ec40b9d8fb4c4d4bc0b25a',
-            '36c0ef98aea7630948addb0c2b967d6fb07ec95a',
-            'a6de5c62ac567cd8508397c00da76e2394c0b76f',
-            '6b6d4bd516d44c9bd2ff73bee2978d7367f7671b',
-            'b92785488abe0ba5e97f69cff0deae56424cf7b8',
-            '3c90091ad3ae4ece7dc863bc0cedc93abf6652ca',
+            'd6286e7d9d098a7bfb38726b76d422ccc8c17397',
+            '2a0e693a88a1c712f5cd2d50f3c9f1d6b2b9200d',
+            '5f5bcf4c5e6ccb8051c54cabad8296c83c0d27db',
+            '32e7c37620ca52ce2582473339d1df10a3bea424',
+            '3ef01f40a418d51170a7f1ee9ff718dbf16d4e91',
+            '15763bbcf3bdf5d6b29d0c150e19f49c13a84d22',
+            '2ee0ad5b1380881b6944fd089fc3a1975eb0b0db',
+            'd2e12e3d4b0e78ce6983c059eb47fb9f4b1f4ce4',
           ]
           parts = []
           for sha in shas:
@@ -45,29 +44,30 @@ jobs:
               content = base64.b64decode(json.load(response)['content'])
             assert hashlib.sha1(f'blob {len(content)}\0'.encode() + content).hexdigest() == sha
             parts.append(content)
-          pathlib.Path('/tmp/semantic-source.patch').write_bytes(b''.join(parts))
+          pathlib.Path('/tmp/semantic-contracts.patch').write_bytes(b''.join(parts))
           PY
-          git apply --check /tmp/semantic-source.patch
-          git apply /tmp/semantic-source.patch
-      - name: Validate runtime, types, formatting and installed consumers
+          git apply --check /tmp/semantic-contracts.patch
+          git apply /tmp/semantic-contracts.patch
+      - name: Validate types, lint, format, 217 tests and installed consumers
         run: |
           set -o pipefail
           bun run format
-          bun install --frozen-lockfile
-          bun run check 2>&1 | tee /tmp/semantic-source.log
-          node --no-warnings --experimental-strip-types --experimental-loader ./scripts/node-test-loader.mjs --test --test-timeout=5000 tests/*.test.ts 2>&1 | tee /tmp/semantic-source-node.log
-      - name: Commit validated source
+          bun run check 2>&1 | tee /tmp/semantic-contracts.log
+          node --no-warnings --experimental-strip-types --experimental-loader ./scripts/node-test-loader.mjs --test --test-timeout=5000 tests/*.test.ts 2>&1 | tee /tmp/semantic-contracts-node.log
+      - name: Commit validated tests and documentation separately
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add src scripts package.json bun.lock tsdown.config.ts
-          git commit -m 'feat: add semantic hooks, immutable clients, field diagnostics and readable durations'
+          git add tests
+          git commit -m 'test: cover semantic lifecycle, duration grammar and schema paths'
+          git add AGENTS.md CHANGELOG.md README.md docs examples
+          git commit -m 'docs: explain semantic clients, duration inputs and field diagnostics'
           git push origin HEAD:feat/semantic-dx
           git rev-parse HEAD >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: semantic-source-validation
-          path: /tmp/semantic-source*.log
+          name: semantic-contracts-validation
+          path: /tmp/semantic-contracts*.log
           if-no-files-found: ignore
           retention-days: 1
