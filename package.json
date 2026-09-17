@@ -1,0 +1,39 @@
+{
+  "name": "@nitoba/questions",
+  "version": "0.1.0-alpha.1",
+  "description": "Typed semantic decisions and native Web Streams, without Effect.",
+  "type": "module",
+  "license": "MIT",
+  "author": "Bruno Alves",
+  "repository": { "type": "git", "url": "git+https://github.com/nitoba/questions.git" },
+  "sideEffects": false,
+  "engines": { "node": ">=22" },
+  "packageManager": "bun@1.4.2",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js" },
+    "./streams": { "types": "./dist/streams.d.ts", "import": "./dist/streams.js" },
+    "./providers/jev": { "types": "./dist/providers/jev.d.ts", "import": "./dist/providers/jev.js" },
+    "./package.json": "./package.json"
+  },
+  "files": ["dist", "src", "README.md", "LICENSE"],
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "bun test",
+    "test:coverage": "bun test --coverage",
+    "lint": "oxlint --deny-warnings",
+    "format": "oxfmt --write .",
+    "format:check": "oxfmt --check .",
+    "build": "tsdown && tsc -p tsconfig.build.json",
+    "check": "bun run typecheck && bun run lint && bun run format:check && bun test && bun run build && bun run test:package",
+    "test:package": "node scripts/package-smoke.mjs"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "typescript": "7.0.2",
+    "oxlint": "1.83.0",
+    "oxfmt": "0.66.0",
+    "tsdown": "0.23.0",
+    "publint": "latest"
+  }
+}
