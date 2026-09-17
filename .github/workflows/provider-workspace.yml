@@ -65,6 +65,8 @@ jobs:
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          # Commit workflow changes separately through the authorized repository tool.
+          git restore --source=HEAD --staged --worktree .github/workflows/ci.yml
           git add -u
           git commit -m 'feat(providers): add optional Vercel evaluation and validated AI SDK bridge'
           git push origin HEAD:feat/multi-provider
