@@ -1,0 +1,33 @@
+name: Tag rc3
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/tag-rc3.yml
+
+permissions:
+  contents: write
+
+env:
+  RELEASE_TAG: v0.1.0-rc.3
+
+jobs:
+  tag:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Create release tag on validated parent commit
+        run: |
+          set -euo pipefail
+          RELEASE_COMMIT="$(git rev-parse HEAD^)"
+          VERSION="$(git show "$RELEASE_COMMIT:package.json" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>process.stdout.write(JSON.parse(s).version))')"
+          test "v$VERSION" = "$RELEASE_TAG"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git tag "$RELEASE_TAG" "$RELEASE_COMMIT"
+          git push origin "$RELEASE_TAG"
