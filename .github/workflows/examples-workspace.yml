@@ -1,0 +1,21 @@
+name: Examples source workspace
+on:
+  push:
+    branches: [docs/progressive-examples]
+    paths: [.github/workflows/examples-workspace.yml]
+permissions:
+  contents: read
+jobs:
+  source:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - run: git archive --format=tar.gz HEAD > /tmp/questions-examples-source.tgz
+      - uses: actions/upload-artifact@v4
+        with:
+          name: questions-examples-source
+          path: /tmp/questions-examples-source.tgz
+          retention-days: 1
