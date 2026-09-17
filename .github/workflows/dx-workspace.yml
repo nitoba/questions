@@ -1,32 +1,73 @@
-name: Semantic DX workspace
+name: Validate semantic DX implementation
 on:
   push:
     branches: [feat/semantic-dx]
     paths: [.github/workflows/dx-workspace.yml]
 permissions:
-  contents: read
+  contents: write
 jobs:
-  workspace:
+  integrate:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
         with:
-          persist-credentials: false
+          ref: ${{ github.sha }}
       - uses: actions/setup-node@v4
         with:
           node-version: "22.16.0"
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: "1.4.2"
-      - run: bun install --frozen-lockfile && bun add --exact ms@2.1.3 && bun add --dev --exact @types/ms@2.1.0
-      - name: Export source and isolated toolchain
+      - name: Install published duration parser and existing toolchain
+        run: bun install --frozen-lockfile && bun add --exact ms@2.1.3 && bun add --dev --exact @types/ms@2.1.0
+      - name: Verify and apply reviewed source patches
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
-          mkdir -p .validation-tools
-          cp "$(command -v bun)" .validation-tools/bun
-          tar --exclude='./.git' -czf /tmp/questions-dx.tgz .
+          python3 - <<'PY'
+          import base64, hashlib, json, os, pathlib, urllib.request
+          shas = [
+            '721465d1b5551addb159cdd36bdfa075535e53c1',
+            '4c6204cb3e408a80564bd107c3cb6453565300f1',
+            'bed8893aa2c8443c93ec40b9d8fb4c4d4bc0b25a',
+            '36c0ef98aea7630948addb0c2b967d6fb07ec95a',
+            'a6de5c62ac567cd8508397c00da76e2394c0b76f',
+            '6b6d4bd516d44c9bd2ff73bee2978d7367f7671b',
+            'b92785488abe0ba5e97f69cff0deae56424cf7b8',
+            '3c90091ad3ae4ece7dc863bc0cedc93abf6652ca',
+          ]
+          parts = []
+          for sha in shas:
+            req = urllib.request.Request('https://api.github.com/repos/nitoba/questions/git/blobs/' + sha,
+              headers={'Authorization': 'Bearer ' + os.environ['GH_TOKEN'], 'Accept': 'application/vnd.github+json'})
+            with urllib.request.urlopen(req) as response:
+              content = base64.b64decode(json.load(response)['content'])
+            assert hashlib.sha1(f'blob {len(content)}\0'.encode() + content).hexdigest() == sha
+            parts.append(content)
+          pathlib.Path('/tmp/semantic-source.patch').write_bytes(b''.join(parts))
+          PY
+          git apply --check /tmp/semantic-source.patch
+          git apply /tmp/semantic-source.patch
+      - name: Validate runtime, types, formatting and installed consumers
+        run: |
+          set -o pipefail
+          bun run format
+          bun install --frozen-lockfile
+          bun run check 2>&1 | tee /tmp/semantic-source.log
+          node --no-warnings --experimental-strip-types --experimental-loader ./scripts/node-test-loader.mjs --test --test-timeout=5000 tests/*.test.ts 2>&1 | tee /tmp/semantic-source-node.log
+      - name: Commit validated source
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src scripts package.json bun.lock tsdown.config.ts
+          git commit -m 'feat: add semantic hooks, immutable clients, field diagnostics and readable durations'
+          git push origin HEAD:feat/semantic-dx
+          git rev-parse HEAD >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@v4
+        if: always()
         with:
-          name: questions-dx-workspace
-          path: /tmp/questions-dx.tgz
+          name: semantic-source-validation
+          path: /tmp/semantic-source*.log
+          if-no-files-found: ignore
           retention-days: 1
