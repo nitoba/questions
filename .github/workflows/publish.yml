@@ -4,13 +4,19 @@ on:
   push:
     tags:
       - "v*"
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: Existing release tag to publish
+        required: true
+        type: string
 
 permissions:
   contents: read
   id-token: write
 
 concurrency:
-  group: npm-publish-${{ github.ref }}
+  group: npm-publish-${{ github.event_name == 'workflow_dispatch' && inputs.release_tag || github.ref }}
   cancel-in-progress: false
 
 jobs:
@@ -20,6 +26,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.release_tag || github.ref }}
           fetch-depth: 0
           persist-credentials: false
 
@@ -35,10 +42,12 @@ jobs:
       - name: Verify release tag
         id: release
         shell: bash
+        env:
+          REQUESTED_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.release_tag || github.ref_name }}
         run: |
           set -euo pipefail
 
-          TAG="${GITHUB_REF_NAME}"
+          TAG="$REQUESTED_TAG"
           VERSION="${TAG#v}"
           PACKAGE_VERSION="$(node -p "require('./package.json').version")"
 
@@ -57,6 +66,11 @@ jobs:
           fi
 
           RELEASE_COMMIT="$(git rev-parse HEAD)"
+          TAG_COMMIT="$(git rev-list -n 1 "$TAG")"
+          if [[ "$RELEASE_COMMIT" != "$TAG_COMMIT" ]]; then
+            echo "Checked out commit does not match $TAG." >&2
+            exit 1
+          fi
           if ! git merge-base --is-ancestor "$RELEASE_COMMIT" origin/main; then
             echo "Release tag must point to a commit contained in main." >&2
             exit 1
