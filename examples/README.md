@@ -4,7 +4,7 @@ Start with one decision. Progress to typed question batches, evidence, Zod, oper
 Web Streams, and a persistent fulfillment-exception application. **All examples, comments,
 sample data and tutorial instructions are in English.**
 
-These examples target the repository's current **0.1.0-rc.2** API. They replace the previous
+These examples target the repository's current **0.1.0-rc.3** API. They replace the previous
 unstructured examples; they are not compatibility wrappers around them. No library API changes
 are needed to run this learning path.
 

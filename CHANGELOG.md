@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.0-rc.3
+
+- Refresh consumer installation documentation to use unpinned package names and let package managers resolve compatible current releases.
+- Stop instructing consumers to install `@ai-sdk/provider` directly; generative users install `ai` plus the provider package they use.
+- Keep runtime behavior unchanged and publish this documentation/release metadata update through the tag-triggered npm Trusted Publishing workflow.
+
 ## 0.1.0-rc.2
 
 - Republish the release candidate with the npm-first README that was added after `0.1.0-rc.1` had already been published.

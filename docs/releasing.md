@@ -9,7 +9,7 @@ This repository publishes `@nitoba/questions` as a public scoped package. Releas
 3. Run `bun install --frozen-lockfile` and `bun run check`.
 4. Run `bun run release:dry-run` and inspect the package contents.
 5. Merge or fast-forward the validated release commit to `main`.
-6. Create a Git tag whose name exactly matches `v` plus the package version, for example `v0.1.0-rc.2`.
+6. Create a Git tag whose name exactly matches `v` plus the package version, for example `v0.1.0-rc.3`.
 7. Push the tag. The **Publish to npm** workflow validates the tag and publishes automatically through npm Trusted Publishing/OIDC.
 8. Verify the package and npm dist-tags after publication before creating downstream upgrade instructions.
 
@@ -44,8 +44,8 @@ For the current release candidate:
 ```sh
 git switch main
 git pull --ff-only origin main
-git tag v0.1.0-rc.2
-git push origin v0.1.0-rc.2
+git tag v0.1.0-rc.3
+git push origin v0.1.0-rc.3
 ```
 
 Pushing the tag starts **Publish to npm** automatically. The workflow runs the package `prepublishOnly` gate through `npm publish`, so typechecks, lint, formatting, tests, build, installed-consumer checks, README snippets, and documentation links must pass before npm receives the package.

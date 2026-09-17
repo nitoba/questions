@@ -1,6 +1,6 @@
 # Generative decision providers
 
-Available in `0.1.0-rc.2`. Use an AI SDK language model to answer Questions' finite decisions
+Available in `0.1.0-rc.3`. Use an AI SDK language model to answer Questions' finite decisions
 with an internal prompt and structured JSON output. Gemini, Claude, GPT and Gateway language
 models share the same integration. The selected model must support the requested structured
 output; a provider's presence in the SDK does not guarantee every model supports it.
