@@ -1,6 +1,6 @@
 {
   "name": "@nitoba/questions",
-  "version": "0.1.0-alpha.2",
+  "version": "0.1.0-alpha.3",
   "description": "Typed semantic decisions and native Web Streams, without Effect.",
   "license": "MIT",
   "author": "Bruno Alves",
@@ -12,7 +12,8 @@
     "dist",
     "src",
     "README.md",
-    "LICENSE"
+    "LICENSE",
+    "docs"
   ],
   "type": "module",
   "sideEffects": false,
@@ -34,6 +35,22 @@
     "./schema": {
       "types": "./dist/schema.d.ts",
       "import": "./dist/schema.js"
+    },
+    "./providers/typesafe": {
+      "types": "./dist/providers/typesafe.d.ts",
+      "import": "./dist/providers/typesafe.js"
+    },
+    "./providers/system-one": {
+      "types": "./dist/providers/system-one.d.ts",
+      "import": "./dist/providers/system-one.js"
+    },
+    "./providers/ai-sdk": {
+      "types": "./dist/providers/ai-sdk.d.ts",
+      "import": "./dist/providers/ai-sdk.js"
+    },
+    "./providers/vercel": {
+      "types": "./dist/providers/vercel.d.ts",
+      "import": "./dist/providers/vercel.js"
     }
   },
   "scripts": {
@@ -45,9 +62,12 @@
     "format:check": "oxfmt --check .",
     "build": "bun run --bun tsdown && tsc -p tsconfig.build.json",
     "check": "bun run typecheck && bun run lint && bun run format:check && bun test && bun run build && bun run test:package",
-    "test:package": "node scripts/package-smoke.mjs"
+    "test:package": "node scripts/package-smoke.mjs && node scripts/sdk-package-smoke.mjs",
+    "test:package:native": "node scripts/package-smoke.mjs"
   },
   "devDependencies": {
+    "@ai-sdk/gateway": "4.0.85",
+    "@ai-sdk/provider": "4.0.17",
     "@types/bun": "1.4.2",
     "oxfmt": "0.66.0",
     "oxlint": "1.83.0",
@@ -57,7 +77,13 @@
     "zod": "4.6.5"
   },
   "peerDependencies": {
+    "@ai-sdk/gateway": "^4.0.85",
     "zod": "^4.0.0"
+  },
+  "peerDependenciesMeta": {
+    "@ai-sdk/gateway": {
+      "optional": true
+    }
   },
   "engines": {
     "node": ">=22"

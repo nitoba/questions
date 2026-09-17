@@ -29,6 +29,34 @@ cd ../your-app
 bun add /tmp/questions.tgz zod
 ```
 
+## Choose a provider
+
+Schemas, batches and streams stay the same when you change providers:
+
+```ts
+import { Questions, TypeSafe, SystemOne } from "@nitoba/questions";
+
+const direct = Questions.create({ model: TypeSafe.create({ apiKey: typesafeKey }) });
+const hosted = Questions.create({
+  model: SystemOne.create({ baseURL: inferenceURL, apiKey: inferenceKey, model: evaluationModel }),
+});
+```
+
+Vercel AI Gateway uses its official **evaluation** SDK protocol, not OpenAI-compatible chat:
+
+```ts
+import { Questions } from "@nitoba/questions";
+import * as Vercel from "@nitoba/questions/providers/vercel";
+
+const questions = Questions.create({
+  model: Vercel.create({ apiKey: gatewayKey, model: "typesafe-ai/jev" }),
+});
+```
+
+Install the optional `@ai-sdk/gateway` peer for Vercel. Its SDK requires Zod >=4.1.8 when used with Questions. The package root, native providers and streams never load that SDK. `@nitoba/questions/providers/ai-sdk` also adapts an existing Evaluation V4 model, including an SDK instance already configured for authentication or routing. `Jev.create` remains compatible.
+
+**Confidence is not identical across protocols.** TypeSafe retains its confidence; the AI SDK bridge uses an explicit top-two probability margin for choice/score and identifies its origin. Missing distributions fail rather than inventing certainty. Usage counters may be unreported. Read [the provider guide](docs/providers.md) for complete setup, custom endpoints, evidence contracts and transport guarantees. Run the live Gateway example with `AI_GATEWAY_API_KEY=your-key bun examples/vercel-triage.ts`.
+
 ## Ask with a Zod schema
 
 ```ts
@@ -64,7 +92,7 @@ const result = await questions.about("The API is returning 503").ask(triage);
 
 `ask(schema)` returns `z.output<typeof schema>`, with **actual asynchronous Zod parsing**, not a cast. Descriptions, approved metadata and typed annotations guide inference. Refinements, transforms, defaults and readonly modifiers retain their Zod semantics. The same overload works with `each(...).ask(schema)` and inside stream operators.
 
-The current protocol supports finite decisions, not free-form JSON extraction. Use booleans, enums, nested objects, fixed tuples and annotated numbers; unsupported schemas fail before calling the provider. Zod is a required peer for the root package and `/schema`; `/streams` and `/providers/jev` remain independently usable without it. Zod is the only runtime peer; no Effect dependency is introduced.
+The current protocol supports finite decisions, not free-form JSON extraction. Use booleans, enums, nested objects, fixed tuples and annotated numbers; unsupported schemas fail before calling the provider. Zod is a required peer for the root package and `/schema`; `/streams` and `/providers/jev` remain independently usable without it. Zod is the required runtime peer; the Vercel subpath has an optional Gateway SDK peer. No Effect dependency is introduced.
 
 See [the schema guide](docs/schemas.md) for `.describe()`, `.meta()`, `Schema.registry`, probability vs score, optionals, errors, cancellation and advanced compiled plans. Run the complete live example with `TYPESAFE_API_KEY=your-key bun examples/schema-triage.ts`.
 
@@ -119,7 +147,7 @@ try {
 
 Only the selected handler runs. A rejected confidence gate runs **no handler**. A handler's exception is not retried or converted into an automatic fallback. Handlers may receive `{ signal }` for cooperative cancellation.
 
-For boolean evidence, confidence means `abs(2 * P(true) - 1)`, not `P(true)`. A confidence requirement of `0.8` requires `P(true) <= 0.1` or `P(true) >= 0.9`. A tie projects to `true` unless confidence rejects it. Choice and score confidence come from the provider; they are not guarantees of correctness.
+For boolean evidence, confidence means `abs(2 * P(true) - 1)`, not `P(true)`. A confidence requirement of `0.8` requires `P(true) <= 0.1` or `P(true) >= 0.9`. A tie projects to `true` unless confidence rejects it. Choice and score confidence use the source recorded on their evidence: native provider, probability margin or custom policy. They are not guarantees of correctness or interchangeable thresholds.
 
 ## Select your own objects
 
@@ -254,7 +282,7 @@ Only HTTP `429` and `529` are retried. Network failures, malformed responses and
 
 Malformed context, questions or normalized evidence raise `ValidationError`. Transport/status/JSON decoding failures raise `ProviderError`. An expired provider budget raises `TimeoutError`. A confidence rejection raises `UncertainDecision`. Schema-backed decisions that fail Zod validation raise `SchemaValidationError`, with original issue paths and a Zod error cause. Caller cancellation preserves `signal.reason`; arbitrary application/provider failures preserve their original values. These are ordinary thrown errors, **not a typed Promise error channel**. Original error causes can contain sensitive details from a custom transport; sanitize application logs.
 
-The decoder rejects missing/extra answer keys, undeclared choices, invalid probabilities, non-normalized distributions (tolerance `1e-6`), inconsistent winners, scores inconsistent with the weighted rubric, changed legends and invalid usage counters. Validation checks structure and arithmetic, not whether a semantic judgment is factually correct.
+The decoder rejects missing/extra answer keys, undeclared choices, invalid probabilities, non-normalized distributions (base tolerance `1e-6`, plus explicitly reported rounding precision), inconsistent winners, scores inconsistent with the weighted rubric, changed legends and invalid usage counters. Validation checks structure and arithmetic, not whether a semantic judgment is factually correct.
 
 ## Development
 
@@ -262,4 +290,4 @@ The decoder rejects missing/extra answer keys, undeclared choices, invalid proba
 
 The runtime uses only Web APIs. CI targets Bun and Node 22/24 and separately checks the minimum Zod 4.0.0 peer; browser/edge compatibility is architectural, not a claim that every browser or deployment target has been tested. Keep provider API keys on your server. See [migration notes](docs/migration.md), [contributing guidance](AGENTS.md), and JSDoc in `src`.
 
-MIT. No telemetry, background jobs, model-generated executable code, implicit caches or hidden retries.
+MIT. Questions adds no telemetry, background jobs, model-generated executable code, implicit caches or hidden retries. The optional official Gateway SDK/service has its own request metadata and logging policies.

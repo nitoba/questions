@@ -6,12 +6,16 @@ export interface BooleanAnswer {
   readonly type: "boolean";
   readonly probability: number;
 }
-/** A selected option and the complete distribution; confidence is provider-supplied. */
+/** Origin of choice/score confidence. Undefined on older custom providers. */
+export type ConfidenceSource = "provider" | "margin" | "custom";
+/** A selected option and complete distribution; inspect confidenceSource before comparing providers. */
 export interface ChoiceAnswer<K extends string = string> {
   readonly type: "choice";
   readonly choice: K;
   readonly probabilities: Readonly<Record<K, number>>;
   readonly confidence: number;
+  /** The metric used for confidence, not a calibration or accuracy guarantee. */
+  readonly confidenceSource?: ConfidenceSource;
 }
 /** A weighted level index, with the original rubric and complete distribution. */
 export interface ScoreAnswer {
@@ -20,6 +24,8 @@ export interface ScoreAnswer {
   readonly probabilities: Readonly<Record<string, number>>;
   readonly legend: Readonly<Record<string, string>>;
   readonly confidence: number;
+  /** The metric used for confidence, not a calibration or accuracy guarantee. */
+  readonly confidenceSource?: ConfidenceSource;
 }
 /** The normalized evidence algebra. */
 export type AnyAnswer = BooleanAnswer | ChoiceAnswer | ScoreAnswer;
@@ -114,7 +120,7 @@ export function expectedValue<K extends string>(
   return finite(total, "expectedValue");
 }
 
-/** Boolean confidence uses |2P(true)-1|; other answers retain provider confidence. */
+/** Boolean confidence uses |2P(true)-1|; other answers use their declared confidence metric. */
 export function confidence(answer: AnyAnswer): number {
   return answer.type === "boolean"
     ? Math.abs(2 * probability(answer.probability, "probability") - 1)

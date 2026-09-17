@@ -70,7 +70,9 @@ export function normalizeResponse(value: unknown): unknown {
         const answer = record(raw, `response.answers.${key}`);
         return [
           key,
-          answer.type === "noul" ? { type: "boolean", probability: answer.noul } : answer,
+          answer.type === "noul"
+            ? { type: "boolean", probability: answer.noul }
+            : { ...answer, confidenceSource: "provider" },
         ];
       }),
     ),

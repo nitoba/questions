@@ -2,7 +2,7 @@
 
 ## Boundaries
 
-`question.ts` defines and snapshots boolean, choice and score questions. `model.ts` declares the provider boundary. `questions.ts` binds context, performs one batch evaluation, validates it, and projects values or dispatches a selected handler. `answer.ts` implements probability mathematics. `decision.ts` implements policies over evidence. `providers/jev.ts` owns HTTP, wire conversion, retries and response-size limits. `streams.ts` is a generic Web Streams facade; it does not know about Jev or models. `internal` contains validation, response decoding, cancellation and bounded stream-window mechanics.
+`question.ts` defines and snapshots boolean, choice and score questions. `model.ts` declares the provider boundary. `questions.ts` binds context, performs one batch evaluation, validates it, and projects values or dispatches a selected handler. `answer.ts` implements probability mathematics. `decision.ts` implements policies over evidence. `providers/system-one.ts` owns native HTTP/retries and `internal/system-one.ts` owns wire conversion; Jev is a compatibility preset. `streams.ts` is a generic Web Streams facade; it does not know about Jev or models. `internal` contains validation, response decoding, cancellation and bounded stream-window mechanics.
 
 There is no DI container: `Questions.create({ model })` captures a model. There is no global environment lookup. Applications provide secrets, logging, authorization, rate limiting and persistence. JavaScript and declarations are separate build outputs from tsdown and TypeScript 7 respectively.
 
@@ -61,3 +61,9 @@ Live semantic accuracy and real TypeSafe account permissions require an API key 
 Provider validation and confidence gates run before any user validation or transformation callback. The compiler does not pretend unsupported schema input kinds are free-form structured generation. Optional fields use explicit presence questions in the same request. Collection parsing is sequential and nontransactional; stream execution remains governed by the existing native stream runtime.
 
 Zod 4 is a peer dependency, imported through `zod/v4/core` for Classic/Mini compatibility, and is not bundled. Streams and the standalone Jev provider have no runtime Zod import. Root and `/schema` share one registry instance. See [schemas](schemas.md) for the support matrix, metadata precedence and error contracts.
+
+## Multiple providers (alpha.3)
+
+`providers/system-one.ts` owns native HTTP and the System One protocol codec lives in `internal/system-one.ts`. TypeSafe and Jev are small presets. `providers/ai-sdk.ts` translates the structural Evaluation V4 model interface into validated Questions evidence; no SDK import leaks into its public declaration graph. `providers/vercel.ts` composes the official optional Gateway SDK with this bridge and a bounded native HTTP wrapper. Root exports never import the Gateway entry point.
+
+`internal/evaluation-metadata.ts` validates reported rounding, optional usage counters and diagnostics. The evidence decoder preserves confidence provenance and declared precision without inventing probabilities or renormalizing them. All evidence is validated before custom confidence callbacks and Zod processing. See [providers](providers.md) for exact contracts, migration implications and upstream references.

@@ -2,7 +2,7 @@
 
 Questions accepts Zod 4 schemas directly. A schema describes the result, guides inference through metadata, and validates the reconstructed input with `z.safeParseAsync`. The return type is `z.output<typeof schema>`, including transforms, defaults, brands and readonly modifiers. Zod Classic and Zod Mini are supported through `zod/v4/core`.
 
-Zod is a required peer for the root package and `/schema`. Install it alongside Questions. The standalone `/streams` and `/providers/jev` entry points do not load Zod.
+Zod is a required peer for the root package and `/schema`. Install it alongside Questions. The standalone `/streams`, native provider and `/providers/ai-sdk` entry points do not load Zod. The optional Vercel SDK has its own Zod peer requirement; see [providers](providers.md).
 
 ## Start with a schema
 

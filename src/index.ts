@@ -6,11 +6,20 @@ export * as Question from "./question.ts";
 export * as Answer from "./answer.ts";
 export * as Decision from "./decision.ts";
 export * as Streams from "./streams.ts";
+export * as TypeSafe from "./providers/typesafe.ts";
+export * as SystemOne from "./providers/system-one.ts";
 export * as Jev from "./providers/jev.ts";
 export { QuestionsClient, BoundQuestions, EachQuestions } from "./questions.ts";
 export { Stream } from "./streams.ts";
 export { ProviderError, ValidationError, TimeoutError, UncertainDecision } from "./errors.ts";
-export type { QuestionModel, EvaluationRequest, Evaluation, Usage } from "./model.ts";
+export type {
+  QuestionModel,
+  EvaluationRequest,
+  Evaluation,
+  Usage,
+  Rounding,
+  EvaluationWarning,
+} from "./model.ts";
 export type {
   Batch,
   Values,
@@ -23,6 +32,7 @@ export type {
   Answers,
   Evidence,
   AnyAnswer,
+  ConfidenceSource,
   BooleanAnswer,
   ChoiceAnswer,
   ScoreAnswer,

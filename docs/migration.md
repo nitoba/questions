@@ -34,3 +34,11 @@ Original inspiration is acknowledged, but the runtime and validation code are in
 Existing `Question.boolean`, `Question.choice`, `Question.score`, plain batches and their inferred results remain supported. For schema-driven results, pass a `z.object(...)` (not a raw object of Zod fields) to `ask`. Attach instructions with `.describe()`, standard `.meta()` fields, or typed `.register(Schema.registry, ...)` annotations. Explicitly annotate numbers as probability or score. The result is the parsed `z.output<typeof schema>`, including transforms.
 
 Install the Zod 4 peer alongside the package. Existing clients importing the root now resolve that peer even when using only the question-batch API. Applications using only streams or the standalone Jev provider can keep their independent subpath imports. No Effect schema adapter or free-form extraction is implied; see [the schema guide](schemas.md).
+
+## Multiple providers (alpha.3)
+
+Existing `Jev.create({ apiKey, baseUrl })` calls remain valid. New code can use `TypeSafe.create` with `baseURL`, a configured System One host, or the optional Vercel integration. Passing both URL spellings to Jev is rejected.
+
+**Type change:** usage counters are now optional, because SDK providers may omit them. Missing tokens are unknown, not zero; account for that explicitly. Choice/score evidence now optionally records `confidenceSource`; native TypeSafe reports `provider`, SDK defaults to `margin`, and custom policies report `custom`. Thresholds may need recalibration across providers. New optional envelope fields preserve rounding, warnings and provider metadata. Missing SDK distributions are rejected.
+
+The root package still needs only Zod. The Vercel subpath adds an optional `@ai-sdk/gateway` peer and requires Zod >=4.1.8 for the SDK, while native schema support retains its Zod 4.0.0 minimum. See [provider setup and contracts](providers.md).

@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtempSync, readFileSync, writeFileSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { execFileSync } from "node:child_process";
@@ -35,7 +35,10 @@ try {
     readFileSync(join(directory, "node_modules/@nitoba/questions/package.json"), "utf8"),
   );
   assert.equal(Object.keys(installed.dependencies ?? {}).length, 0);
-  assert.deepEqual(installed.peerDependencies, { zod: "^4.0.0" });
+  assert.deepEqual(installed.peerDependencies, { zod: "^4.0.0", "@ai-sdk/gateway": "^4.0.85" });
+  assert.deepEqual(installed.peerDependenciesMeta, { "@ai-sdk/gateway": { optional: true } });
+  assert.equal(existsSync(join(directory, "node_modules/@ai-sdk/gateway")), false);
+  assert.equal(existsSync(join(directory, "node_modules/@ai-sdk/provider")), false);
   const source = `
 import assert from "node:assert/strict";
 import { Questions, Question, Answer, Decision, Schema, SchemaValidationError } from "@nitoba/questions";
@@ -43,7 +46,13 @@ import * as z from "zod";
 import { registry } from "@nitoba/questions/schema";
 import { from } from "@nitoba/questions/streams";
 import { create } from "@nitoba/questions/providers/jev";
+import * as TypeSafe from "@nitoba/questions/providers/typesafe";
+import * as SystemOne from "@nitoba/questions/providers/system-one";
+import * as AISDK from "@nitoba/questions/providers/ai-sdk";
 assert.equal(typeof create, "function");
+assert.equal(typeof TypeSafe.create, "function");
+assert.equal(typeof SystemOne.create, "function");
+assert.equal(typeof AISDK.create, "function");
 const model = { name: "contract", async evaluate(request) {
   return { model: "contract-v1", usage: { inputTokens: 1, outputTokens: 1 },
     answers: Object.fromEntries(Object.keys(request.questions).map(key => [key, { type: "boolean", probability: 0.9 }])) };
@@ -70,6 +79,9 @@ import * as z from "zod";
 import { annotate, compile, type Output } from "@nitoba/questions/schema";
 import { from, type Stream } from "@nitoba/questions/streams";
 import { create } from "@nitoba/questions/providers/jev";
+import * as TypeSafe from "@nitoba/questions/providers/typesafe";
+import * as SystemOne from "@nitoba/questions/providers/system-one";
+import * as AISDK from "@nitoba/questions/providers/ai-sdk";
 declare const model: QuestionModel;
 const result = await Questions.create({ model }).about("x").ask({ route: Question.choice("Which?", {a:"A",b:"B"}) });
 const route: "a" | "b" = result.route;
@@ -86,6 +98,11 @@ void parsed.route;
 parsed.id = "a";
 const probability = annotate(z.number(), { kind: "probability" });
 const plan = compile(schema);
+const direct: QuestionModel = TypeSafe.create({ apiKey: "test" });
+const custom: QuestionModel = SystemOne.create({ baseURL: "http://localhost:9000", model: "local" });
+// @ts-expect-error arbitrary URLs require a protocol model ID
+SystemOne.create({ baseURL: "http://localhost:9000" });
+void [direct, custom, AISDK];
 void [route, invalid, stream, create, output, id, probability, plan];
 `,
   );
@@ -119,8 +136,14 @@ void [route, invalid, stream, create, output, id, probability, plan];
 import assert from "node:assert/strict";
 import { from } from "@nitoba/questions/streams";
 import { create } from "@nitoba/questions/providers/jev";
+import * as TypeSafe from "@nitoba/questions/providers/typesafe";
+import * as SystemOne from "@nitoba/questions/providers/system-one";
+import * as AISDK from "@nitoba/questions/providers/ai-sdk";
 assert.deepEqual(await from([1, 2]).map(n => n + 1).toArray(), [2, 3]);
 assert.equal(typeof create, "function");
+assert.equal(typeof TypeSafe.create, "function");
+assert.equal(typeof SystemOne.create, "function");
+assert.equal(typeof AISDK.create, "function");
 `,
   );
   for (const runtime of ["node", "bun"])

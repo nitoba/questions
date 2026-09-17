@@ -11,3 +11,5 @@
 - Provider responses are untrusted. Validate keys, ranges, probability mass and finite numbers before executing application callbacks.
 - API keys must not appear in source, logs or examples. Live tests are opt-in and may incur provider charges.
 - Do not publish to npm without explicit authorization.
+- Keep optional Gateway imports confined to the Vercel subpath. Test both native consumers without the SDK and consumers with the real SDK installed.
+- Never guess distributions, missing token counts, or TypeSafe confidence from another protocol. Preserve provenance and reported precision; see docs/providers.md.
