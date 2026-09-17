@@ -5,6 +5,7 @@
 - Republish the release candidate with the npm-first README that was added after `0.1.0-rc.1` had already been published.
 - Keep the runtime API unchanged; this release only aligns the npm package documentation and release metadata with the repository.
 - Publish through the existing `next` dist-tag and npm Trusted Publishing/OIDC workflow.
+- Publish future release candidates and stable versions automatically from validated `v*` Git tags; RC tags use `next` and stable tags use `latest`.
 
 ## 0.1.0-rc.1
 
