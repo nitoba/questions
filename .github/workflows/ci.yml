@@ -1,0 +1,41 @@
+name: CI
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  quality:
+    name: Node ${{ matrix.node }} and Bun
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ["22.16.0", "24"]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.4.2"
+      - run: bun install --frozen-lockfile
+      - name: TypeScript 7, lint, format, Bun tests, build and packed consumers
+        run: bun run check
+      - name: Run the same runtime suite under Node
+        run: node --no-warnings --experimental-strip-types --experimental-loader ./scripts/node-test-loader.mjs --test --test-timeout=5000 tests/*.test.ts
+      - name: Produce installable package
+        if: matrix.node == '24'
+        run: bun pm pack --filename questions.tgz
+      - uses: actions/upload-artifact@v4
+        if: matrix.node == '24'
+        with:
+          name: questions-package
+          path: questions.tgz

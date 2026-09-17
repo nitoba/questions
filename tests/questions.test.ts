@@ -193,6 +193,9 @@ test("invalid contexts fail before inference without silent JSON loss", async ()
   const { model, calls } = fixture();
   const cyclic: { self?: unknown } = {};
   cyclic.self = cyclic;
+  // Deliberately construct holes without hiding an accidental sparse literal from lint.
+  const intentionallySparseContext: unknown[] = [];
+  intentionallySparseContext.length = 2;
   for (const context of [
     undefined,
     NaN,
@@ -200,7 +203,7 @@ test("invalid contexts fail before inference without silent JSON loss", async ()
     { bad: undefined },
     { bad: 1n },
     cyclic,
-    [, ,],
+    intentionallySparseContext,
   ]) {
     await assert.rejects(
       Questions.create({ model })

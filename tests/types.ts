@@ -4,7 +4,7 @@ import type { QuestionModel, Stream, ChoiceAnswer } from "../src/index.ts";
 
 type Equal<A, B> =
   (<T>() => T extends A ? 1 : 2) extends <T>() => T extends B ? 1 : 2 ? true : false;
-function exact<T extends true>() {}
+function exact<_T extends true>() {}
 
 export async function typeContracts(
   model: QuestionModel,
@@ -21,14 +21,14 @@ export async function typeContracts(
   exact<Equal<typeof values.team, "billing" | "support">>();
   exact<Equal<typeof values.priority, number>>();
   // @ts-expect-error nonexistent batch key
-  values.missing;
+  void values.missing;
   // @ts-expect-error choice keys are not arbitrary strings
   const invalid: typeof values.team = "sales";
   void invalid;
   const full = await q.evidence(batch);
   exact<Equal<typeof full.answers.team.choice, "billing" | "support">>();
   // @ts-expect-error nonexistent probability key
-  full.answers.team.probabilities.sales;
+  void full.answers.team.probabilities.sales;
   const candidates = [
     { id: "one", label: "One" },
     { id: "two", label: "Two" },
