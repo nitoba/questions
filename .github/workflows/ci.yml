@@ -39,3 +39,22 @@ jobs:
         with:
           name: questions-package
           path: questions.tgz
+
+  zod-minimum:
+    name: Minimum Zod 4 peer
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22.16.0"
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.4.2"
+      - run: bun install --frozen-lockfile
+      - run: bun add --dev --exact zod@4.0.0
+      - name: Types, runtime and installed package against minimum peer
+        run: bun run typecheck && bun test && bun run build && bun run test:package
