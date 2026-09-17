@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased — generative examples and README
+
+- Extend the shared example selector to Google, Anthropic, OpenAI and Gateway language models; keep native evaluation available.
+- Reuse that selector across native questions, Zod, streams, explicit replay comparisons and the fulfillment desk.
+- Document probability provenance, SDK versus ofetch retries, installation and per-example configuration.
+- Test vendor selection, missing credentials, generative tutorial workflows and human-review persistence; compile README snippets.
+- No library API, version or dependency changes.
+
 ## 0.1.0-alpha.6
 
 - Add the optional `Generative.create` language-model integration through AI SDK 7 structured output.

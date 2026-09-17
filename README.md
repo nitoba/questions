@@ -3,8 +3,9 @@
 **Typed semantic decisions for TypeScript.** Ask questions about your data, inspect the evidence,
 and decide what happens next using ordinary `async`/`await` or native Web Streams.
 
-Define decisions with Zod 4 schemas or native typed question batches. Switch between TypeSafe AI,
-Vercel AI Gateway and compatible endpoints without rewriting your questions. Add confidence gates,
+Define decisions with Zod 4 schemas or native typed question batches. Use Jev through TypeSafe AI
+or Vercel evaluation, or use **Gemini, Claude, GPT and Gateway language models** through the
+optional AI SDK generative adapter, without rewriting your questions. Add confidence gates,
 readable deadlines, explicit retries, replay and observability as your application grows.
 
 No Effect dependency, service container or alternative execution runtime. Independently inspired
@@ -14,7 +15,7 @@ by [effect-questions](https://github.com/saiashirwad/effect-questions).
 > and [migration guide](docs/migration.md) before upgrading. Decisions are finite classifications,
 > not arbitrary JSON generation, factual guarantees or authorization to execute business actions.
 
-[Quick start](#quick-start) · [Providers](#providers) · [Schemas](#zod-schemas) ·
+[Quick start](#quick-start) · [Providers](#providers) · [Generative models](#generative-language-models) · [Schemas](#zod-schemas) ·
 [Streams](#web-streams) · [Tutorials](examples/README.md) · [Documentation](#documentation)
 
 ## Quick start
@@ -28,11 +29,26 @@ bun install --frozen-lockfile
 bun run test:examples
 ```
 
-The tests require no API keys and do not call paid models. To run a live tutorial:
+The tests require no API keys and do not call paid models. Start with direct Jev evaluation:
 
 ```sh
 TYPESAFE_API_KEY='your-own-key' bun examples/01-first-question.ts
 ```
+
+Or run a schema tutorial with a generative model available to your account:
+
+```sh
+QUESTIONS_PROVIDER=generative GENERATIVE_PROVIDER=google \
+GENERATIVE_MODEL='your-structured-output-model-id' \
+GOOGLE_GENERATIVE_AI_API_KEY='your-own-key' \
+bun examples/07-zod-decision-schemas.ts
+```
+
+The shared selection also works for native-question tutorials, streams and the complete app.
+Use `GENERATIVE_PROVIDER=anthropic`, `openai` or `gateway` with the corresponding key and model
+ID. The [configuration matrix](examples/README.md#choose-one-model-configuration) lists exact
+variables and the few intentionally provider-specific lessons. Model IDs are explicit, not
+hardcoded recommendations or automatically chosen defaults.
 
 The [learning path](examples/README.md) includes native questions, Zod, non-streaming workflows,
 streams and a complete application. [Environment setup](examples/.env.example) documents the
@@ -54,7 +70,7 @@ bun add /tmp/questions.tgz 'zod@^4.0.0'
 ```
 
 The root import requires the Zod 4 peer, even when your application uses only native question
-batches. Vercel support has an additional optional peer; see [Providers](#providers).
+batches. Generative and Vercel support have additional optional peers; see [Providers](#providers).
 The examples in this repository import source files so they can run without a build.
 The snippets below use package imports and run in server-side TypeScript on Node or Bun.
 
@@ -82,15 +98,18 @@ re-awaiting the same Promise does not. Construction alone performs no inference.
 
 ## Providers
 
-All integrations return a `QuestionModel` for `Questions.create({ model })`:
+All integrations return a `QuestionModel` for `Questions.create({ model })`.
+There are two different sources of decision evidence: a dedicated evaluation protocol and
+prompted structured generation. Select the integration, not just a different URL:
 
-| Integration          | Purpose                                              | Configuration                                              |
-| -------------------- | ---------------------------------------------------- | ---------------------------------------------------------- |
-| `TypeSafe.create()`  | Direct TypeSafe AI access                            | Explicit `apiKey`; default model `jev-latest`              |
-| `SystemOne.create()` | A host implementing the System One protocol          | Explicit `baseURL` and `model`; optional `apiKey`          |
-| `Vercel.create()`    | Official Vercel AI Gateway evaluation SDK            | Explicit `apiKey`; default model `typesafe-ai/jev`         |
-| `AISDK.create()`     | Reuse an existing AI SDK evaluation model            | An Evaluation V4 model instance                            |
-| `Jev.create()`       | Compatible TypeSafe preset for existing applications | Retains its diagnostic name and the old `baseUrl` spelling |
+| Integration           | Purpose                                                                          | Configuration                                              |
+| --------------------- | -------------------------------------------------------------------------------- | ---------------------------------------------------------- |
+| `TypeSafe.create()`   | Direct TypeSafe AI access                                                        | Explicit `apiKey`; default model `jev-latest`              |
+| `SystemOne.create()`  | A host implementing the System One protocol                                      | Explicit `baseURL` and `model`; optional `apiKey`          |
+| `Vercel.create()`     | Official Vercel AI Gateway evaluation SDK                                        | Explicit `apiKey`; default model `typesafe-ai/jev`         |
+| `AISDK.create()`      | Reuse an existing AI SDK evaluation model                                        | An Evaluation V4 model instance                            |
+| `Generative.create()` | Prompted finite decisions with Gemini, Claude, GPT or other supported SDK models | Configured `LanguageModelV4` plus `evidence: "estimated"`  |
+| `Jev.create()`        | Compatible TypeSafe preset for existing applications                             | Retains its diagnostic name and the old `baseUrl` spelling |
 
 ### Vercel AI Gateway
 
@@ -113,14 +132,18 @@ const gatewayQuestions = Questions.create({
 const viaGateway = await gatewayQuestions.about(ticket).is("Is production work blocked?");
 ```
 
-The root does not import the optional Gateway SDK. The SDK bridge is available separately at
+The root does not import the optional Gateway or generative SDK integrations.
+The evaluation bridge is available separately at
 `@nitoba/questions/providers/ai-sdk`. TypeSafe and SystemOne are also available through their
 own subpaths. New configuration uses `baseURL`.
 
 **A different URL is not a different protocol.** SystemOne expects System One request/response
 JSON; Vercel uses the SDK's evaluation protocol, not OpenAI-compatible chat. `AISDK.create()`
-accepts evaluation models, not language/chat models. Schemas and stream pipelines remain the
-same, but confidence metrics can differ between providers.
+accepts evaluation models, not language/chat models. Use `Generative.create()` for language models.
+The Gateway has **both** routes: `Vercel.create()` evaluates with Jev, whereas
+`Generative.create({ model: gateway(modelId), evidence: "estimated" })` uses a configured Gateway
+language model. A Gemini/Claude/GPT ID does not turn the Jev evaluation route into generation.
+Schemas and stream pipelines remain the same, but confidence metrics can differ.
 
 See the [provider guide](docs/providers.md) and
 [provider tutorial](examples/12-providers-and-custom-models.ts) for custom endpoints,
@@ -130,7 +153,19 @@ transport injection, existing SDK instances and implementing `QuestionModel.eval
 
 Use Gemini, Claude, GPT or a Gateway language model with the optional
 [`Generative` provider](docs/generative.md). It uses internal prompts and structured output,
-not the Evaluation V4 endpoint:
+not the Evaluation V4 endpoint. In the consuming project, install the integration and one vendor:
+
+```sh
+bun add 'ai@^7.0.105' '@ai-sdk/provider@^4.0.17' 'zod@^4.1.8' '@ai-sdk/google@^4.0.74'
+```
+
+For Claude or GPT, use `@ai-sdk/anthropic@^4.0.56` or `@ai-sdk/openai@^4.0.69` instead of
+Google; for a Gateway language model, use `@ai-sdk/gateway@^4.0.85`. Only install what you use.
+The ranges start at the tested versions; later releases, every model and older SDK majors are not automatically verified.
+This release accepts **configured LanguageModelV4 instances**, not bare strings, V2/V3 models,
+embedding models or Evaluation V4 instances. The selected model must support structured output.
+See the [TypeScript prerequisites](docs/generative.md#install-only-the-integration-you-use) for
+upstream declaration limitations and `@types/json-schema` when using strict library checks.
 
 ```ts
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
@@ -143,19 +178,26 @@ const google = createGoogleGenerativeAI({ apiKey: googleKey });
 const generative = Questions.create({
   model: Generative.create({
     model: google(googleModel),
-    evidence: "estimated",
+    evidence: "estimated", // Required acknowledgement, not calibrated model confidence.
     timeout: "20 seconds",
+    maxRetries: 0, // AI SDK retries; explicit and separate from the ofetch policy.
   }),
 });
 const needsReview = await generative.about(ticket).is("Does this require human review?");
 ```
 
-Install the optional `ai` and `@ai-sdk/provider` peers plus your provider package; see the guide
-for tested versions and TypeScript prerequisites. Native Questions imports still do not load
-these SDKs. All generated probabilities are explicitly marked `estimated`; they are not
-calibrated correctness scores. Choice, weighted score and confidence margins are computed locally
+Native Questions imports do not load these SDKs. The adapter translates normalized questions
+into a fixed, versioned prompt and a separate JSON Schema; it does not send executable Zod callbacks.
+All generated answers have `probabilitySource: "estimated"`; they are prompted estimates, not
+token probabilities or calibrated correctness scores. Choices, weighted scores and confidence
+margins are computed locally
 from validated distributions. Schemas, streams, defaults, diagnostics and replay stay unchanged.
-Retries and model selection are explicit; unsupported free-form schemas remain unsupported.
+Missing alternatives, invalid distributions, refusals and truncated outputs fail before business
+actions or Zod transforms. There is no automatic repair, provider fallback or invented certainty.
+`maxRetries` controls SDK transport retries and defaults to zero; Questions' HTTP hooks do not
+observe an externally configured SDK transport. `maxOutputBytes` checks generated text after
+buffering, not HTTP bytes. See [limits and errors](docs/generative.md#validation-deadlines-and-retries).
+Unsupported free-form schemas remain unsupported.
 The [generative tutorial](examples/17-generative-models.ts) covers complete provider configuration.
 
 ## Zod schemas
@@ -387,7 +429,7 @@ Inspect the existing run without another model call:
 
 ```ts
 for (const field of first.diagnostics) {
-  console.log(field.path, field.role, field.answer, field.confidencePassed);
+  console.log(field.path, field.role, field.answer.probabilitySource, field.confidencePassed);
 }
 
 const compiled = Schema.compile(triage);
@@ -409,7 +451,11 @@ probability grouping, expected values and expected-loss policies. The
 
 **Confidence is not factual certainty.** Boolean confidence is `abs(2 * P(true) - 1)`.
 Choice/score evidence identifies its `confidenceSource`: provider, top-two margin or custom policy.
-Thresholds are not interchangeable across providers. Missing token counts remain unknown,
+`probabilitySource` is separate: `estimated` means prompted generation, `provider` means an
+evaluation protocol supplied the numbers, and missing provenance remains unreported. Neither
+marker proves calibration. Generative strategy/model/prompt version are retained under
+`providerMetadata.questionsGenerative`. Thresholds are not interchangeable across providers.
+Missing token counts remain unknown,
 not zero. Evidence/diagnostics may be sensitive; they are not included in default telemetry.
 
 ## Web Streams
@@ -468,7 +514,7 @@ for each run. **Every terminal consumption is new work:** using both snippets re
 Arrays are repeatable; native streams and generators are single-use. Use `Streams.defer()`
 to acquire a fresh source per run. There is no implicit cache, replay buffer or `tee`.
 
-These are streams of items and decisions, **not token streams from Jev**. Pure stream utilities
+These are streams of complete, validated items and decisions, **not Jev tokens or partial generative JSON**. Pure stream utilities
 are available at `@nitoba/questions/streams` without loading Zod, ofetch, ms or the Gateway SDK.
 See [stream lifetimes](docs/streams.md) and [native interoperability](examples/15-native-stream-interop.ts).
 
@@ -477,13 +523,14 @@ See [stream lifetimes](docs/streams.md) and [native interoperability](examples/1
 | Error                   | Meaning                                                                                   |
 | ----------------------- | ----------------------------------------------------------------------------------------- |
 | `ValidationError`       | Invalid configuration, context, question definition or normalized evidence                |
-| `ProviderError`         | Transport, HTTP status or provider decoding failure                                       |
+| `ProviderError`         | Provider decoding/output failure, including invalid generated distributions or refusals   |
 | `TimeoutError`          | An operation or provider budget expired                                                   |
 | `UncertainDecision`     | An applicable confidence gate rejected a decision                                         |
 | `SchemaValidationError` | A well-formed decision failed the supplied Zod schema; original issues/cause are retained |
 
 Caller cancellation preserves `signal.reason`; arbitrary callback failures preserve their
-thrown values. These are ordinary Promise rejections, not a typed error channel. Provider
+thrown values. Generative output failures become `ProviderError(kind: "response")`, while
+external AI SDK transport errors preserve their identity and can contain sensitive details. These are ordinary Promise rejections, not a typed error channel. Provider
 evidence is validated before schema callbacks and business dispatch. No automatic fallback,
 handler retry or telemetry is added by Questions. The optional SDK/service retains its own
 routing and metadata policies. Keep API keys server-side, sanitize logs, and enforce business
@@ -491,18 +538,29 @@ authorization and idempotency in your application.
 
 ## Tutorials and a complete application
 
-The [learning path](examples/README.md) contains **16 focused tutorial files and one multi-file
+The [learning path](examples/README.md) contains **17 focused tutorial files and one multi-file
 application**, with English instructions, a feature coverage map and request counts.
 Start with [native questions](examples/02-native-question-schema.ts),
 [Zod](examples/07-zod-decision-schemas.ts), [derived clients](examples/09-derived-clients-and-observability.ts)
 or [bounded pipelines](examples/13-bounded-stream-pipelines.ts). Most live lessons support
-TypeSafe or Vercel. Tests never silently fall back to paid models.
+native evaluation or prompted generation through the shared model selector. Tutorial 17 focuses
+on the Generative adapter itself. Tests never silently fall back to paid models.
 
 The [fulfillment desk](examples/16-fulfillment-desk/README.md) combines ordinary async services,
 Zod and streams with **real SQLite storage, a review HTTP API, transactional outbox and a
 deduplicating notification receiver**. Its walkthrough includes failure and recovery exercises.
 Operator approval is explicit; it is a runnable application slice, not a production-readiness
-or exactly-once-delivery claim.
+or exactly-once-delivery claim. The same application runs with Jev or a generative model:
+
+```sh
+QUESTIONS_PROVIDER=generative GENERATIVE_PROVIDER=anthropic \
+GENERATIVE_MODEL='your-structured-output-model-id' ANTHROPIC_API_KEY='your-own-key' \
+bun examples/16-fulfillment-desk/main.ts process 20
+```
+
+Ingest the [sample cases](examples/16-fulfillment-desk/sample.ndjson) first, following the app's
+README. Both accepted estimates and uncertain results require operator review; switching
+providers does not automatically reassess stored cases or approve notifications.
 
 ## Development and compatibility
 
@@ -510,6 +568,7 @@ or exactly-once-delivery claim.
 bun run check          # Types, lint, format, tests, build, installed consumers and local doc links
 bun run test:examples  # Executable tutorials, SQLite/HTTP/CLI tests and local doc links
 bun run test:coverage
+bun run test:docs      # Typecheck README snippets against the built package; no inference
 ```
 
 The toolchain is pinned in [package.json](package.json) and `bun.lock`: Bun, TypeScript 7,
@@ -517,23 +576,26 @@ Oxlint, Oxfmt and tsdown. tsdown builds JavaScript; TypeScript emits declaration
 [AGENTS.md](AGENTS.md) for contribution contracts.
 
 CI runs the core library tests on Node 22/24 and Bun, typechecks example modules, checks the
-minimum Zod peer and installs packed consumers with/without the optional Gateway SDK.
+minimum Zod peer and installs packed consumers with and without the optional generative/Gateway SDKs.
+README TypeScript snippets are also compiled against the built package; all model calls are skipped.
 The fulfillment desk host/tests deliberately use Bun's SQLite and HTTP APIs. Runtime dependencies
-are `ofetch` and `ms`; Zod is a peer, and the Gateway peer is optional. The duration and pure
+are `ofetch` and `ms`; Zod is required at the root. `ai`, `@ai-sdk/provider` and
+`@ai-sdk/gateway` are optional peers. Vendor SDKs are development-only for tests and examples. The duration and pure
 stream subpaths are independent of Zod; the structural SDK bridge does not load ofetch or the
 Gateway SDK. Browser/edge portability is not a claim that every deployment target was tested.
 
 ## Documentation
 
-| Guide                                                 | Details                                                            |
-| ----------------------------------------------------- | ------------------------------------------------------------------ |
-| [Schemas](docs/schemas.md)                            | Supported inputs, annotations, validation and compiled plans       |
-| [Semantic DX](docs/semantic-dx.md)                    | Immutable clients, hooks, durations, deadlines and diagnostics     |
-| [Providers](docs/providers.md)                        | Protocols, optional peers, custom models and confidence provenance |
-| [HTTP, retries and replay](docs/http-retry-replay.md) | Attempt policies, captured inputs, cancellation and privacy        |
-| [Streams](docs/streams.md)                            | Backpressure, resource lifetime and native APIs                    |
-| [Architecture](docs/architecture.md)                  | Internal boundaries and normalized provider contract               |
-| [Migration](docs/migration.md)                        | Effect differences and compatibility notes                         |
-| [Examples](examples/README.md)                        | Progressive tutorials, coverage map and the complete application   |
+| Guide                                                 | Details                                                                     |
+| ----------------------------------------------------- | --------------------------------------------------------------------------- |
+| [Schemas](docs/schemas.md)                            | Supported inputs, annotations, validation and compiled plans                |
+| [Semantic DX](docs/semantic-dx.md)                    | Immutable clients, hooks, durations, deadlines and diagnostics              |
+| [Providers](docs/providers.md)                        | Protocols, optional peers, custom models and confidence provenance          |
+| [Generative models](docs/generative.md)               | AI SDK 7 models, estimated probabilities, limits and SDK-specific contracts |
+| [HTTP, retries and replay](docs/http-retry-replay.md) | Attempt policies, captured inputs, cancellation and privacy                 |
+| [Streams](docs/streams.md)                            | Backpressure, resource lifetime and native APIs                             |
+| [Architecture](docs/architecture.md)                  | Internal boundaries and normalized provider contract                        |
+| [Migration](docs/migration.md)                        | Effect differences and compatibility notes                                  |
+| [Examples](examples/README.md)                        | Progressive tutorials, coverage map and the complete application            |
 
 MIT — see [LICENSE](LICENSE).
