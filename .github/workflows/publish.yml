@@ -52,18 +52,6 @@ jobs:
         if: ${{ inputs.dry_run == true }}
         run: npm publish --dry-run --access public --tag next
 
-      - name: Require first-publish credentials
+      - name: Publish release candidate with npm Trusted Publishing
         if: ${{ inputs.dry_run == false }}
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: |
-          if [ -z "$NODE_AUTH_TOKEN" ]; then
-            echo "NPM_TOKEN is required for the first publication. After the package exists, configure npm Trusted Publishing for publish.yml and the OIDC permission above can be used instead." >&2
-            exit 1
-          fi
-
-      - name: Publish release candidate
-        if: ${{ inputs.dry_run == false }}
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: npm publish --access public --tag next
