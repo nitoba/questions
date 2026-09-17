@@ -2,6 +2,7 @@
  * 06 — Editorial review: compare policies over ONE evidence batch.
  *
  * Run: TYPESAFE_API_KEY=... bun examples/06-evidence-and-decision-costs.ts
+ * Or select QUESTIONS_PROVIDER=generative; see the shared configuration in examples/README.md.
  * One evaluation. No Zod and no streams. All Answer/Decision calculations below are local.
  * Learn: complete distributions, confidence vs probability, aggregation and expected loss.
  * Costs are illustrative editorial effort units, not measured model accuracy.
@@ -70,12 +71,15 @@ export async function main(client: QuestionsClient) {
     groups,
     effort,
     confidence,
+    probabilitySource: answer.probabilitySource ?? "unreported",
+    confidenceSource: answer.confidenceSource ?? "unreported",
     confident,
     risks,
     plan,
     booleanDistribution,
     usage: evaluation.usage,
   });
+  // With Generative these are prompted estimates, NOT measured accuracy or interchangeable thresholds.
   // None of these calculations triggers another evaluation or actually publishes the article.
   return { evaluation, selected, plan };
 }

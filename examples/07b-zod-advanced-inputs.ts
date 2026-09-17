@@ -2,6 +2,7 @@
  * 07b — Structured survey decisions: wrappers, tuples, literal unions and Zod Mini.
  *
  * Run: TYPESAFE_API_KEY=... bun examples/07b-zod-advanced-inputs.ts
+ * Or select QUESTIONS_PROVIDER=generative; see the shared configuration in examples/README.md.
  * Two evaluations and one constant-only parse. Zod Classic/Mini; no streams.
  * Learn: nullable/optional/default presence, numeric literals, output refinement/brand/readonly.
  * These input wrappers create finite questions. A free-form z.string() or z.array() does not.

@@ -2,6 +2,7 @@
  * 05 — Investigate a failed deployment with a bounded async/await loop.
  *
  * Run: TYPESAFE_API_KEY=... bun examples/05-live-context-investigation.ts
+ * Or select QUESTIONS_PROVIDER=generative; see the shared configuration in examples/README.md.
  * At most four evaluations. No Zod and no streams.
  * Learn: live context callbacks are read on every operation; a predicate is reusable.
  * No autonomous tools run: observations below are a finite, fictional incident log.

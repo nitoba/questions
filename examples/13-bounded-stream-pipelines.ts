@@ -2,6 +2,7 @@
  * 13 — Search-result screening: bounded per-item evaluation, then collection micro-batches.
  *
  * Run: TYPESAFE_API_KEY=... bun examples/13-bounded-stream-pipelines.ts
+ * Or select QUESTIONS_PROVIDER=generative; see the shared configuration in examples/README.md.
  * Up to eight evaluations: three screening calls, two micro-batches, three predicate calls.
  * Native questions, no Zod. Learn: filter type guard, async predicate, map concurrency/order,
  * batch, tap, take, toArray and forEach. A new consumption repeats inference.

@@ -2,6 +2,7 @@
  * 04 — Catalog enrichment: one request for a whole finite collection.
  *
  * Run: TYPESAFE_API_KEY=... bun examples/04-collection-batching.ts
+ * Or select QUESTIONS_PROVIDER=generative; see the shared configuration in examples/README.md.
  * Three batched evaluations; no Zod, no streams, no Promise.all.
  * Learn: each().ask/is/score, preserving input order, redacting private fields, empty batches.
  * Batch only manageable collections; one request still has a provider context/criteria limit.

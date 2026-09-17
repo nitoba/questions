@@ -2,6 +2,7 @@
  * 08 — Document intake: explain which INPUT field rejected a decision.
  *
  * Run: TYPESAFE_API_KEY=... bun examples/08-schema-diagnostics.ts
+ * Or select QUESTIONS_PROVIDER=generative; see the shared configuration in examples/README.md.
  * One evaluation. Zod, no streams. diagnose() adds ZERO inference and ZERO Zod callbacks.
  * Learn: fields, opaque question IDs, lossless paths, inactive optional fields, typed failures.
  */
@@ -36,11 +37,16 @@ export async function main(client: QuestionsClient) {
     .evidence(compiled.questions);
   const diagnostics = compiled.diagnose(evidence, { confidence: 0.9 });
   console.table(
-    diagnostics.map(({ path, active, confidence, confidencePassed }) => ({
+    diagnostics.map(({ path, active, confidence, confidencePassed, answer }) => ({
       path: JSON.stringify(path),
       active,
       confidence,
       confidencePassed,
+      probabilitySource: answer.probabilitySource ?? "unreported",
+      confidenceSource:
+        answer.type === "boolean"
+          ? "boolean-separation"
+          : (answer.confidenceSource ?? "unreported"),
     })),
   );
   try {

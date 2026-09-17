@@ -2,6 +2,7 @@
  * 09 — Team-specific review policies without shared mutable configuration.
  *
  * Run: TYPESAFE_API_KEY=... bun examples/09-derived-clients-and-observability.ts
+ * Or select QUESTIONS_PROVIDER=generative; see the shared configuration in examples/README.md.
  * Three evaluations; native Question batches, no Zod and no streams.
  * Learn: extend, precedence, hook arrays/resets, operation IDs, semantic vs HTTP counts.
  */

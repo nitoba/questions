@@ -2,6 +2,7 @@
  * 03 — Conference planning: select original objects, rank alternatives, dispatch one branch.
  *
  * Run: TYPESAFE_API_KEY=... bun examples/03-select-and-route.ts
+ * Or select QUESTIONS_PROVIDER=generative; see the shared configuration in examples/README.md.
  * Three evaluations; no Zod and no streams.
  * Learn: choose returns identity, rank returns every candidate, branch runs only one handler.
  * Only descriptions cross the model boundary; private contact data stays local.

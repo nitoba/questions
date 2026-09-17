@@ -2,6 +2,7 @@
  * 14 — Training-session feedback: turn a sequence into transitions and summaries.
  *
  * Run: TYPESAFE_API_KEY=... bun examples/14-stateful-streams.ts
+ * Or select QUESTIONS_PROVIDER=generative; see the shared configuration in examples/README.md.
  * At most three evaluations. Native questions, no Zod.
  * Learn: defer/fresh async iterators, mapAccum, isolated seeds, scan, takeUntil/takeWhile,
  * for-await cancellation. No hidden background listener or unbounded state history.

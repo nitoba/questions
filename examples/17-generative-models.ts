@@ -3,14 +3,16 @@
  * Prerequisites: AI SDK 7 and one configured provider (included as development dependencies).
  * Run: GENERATIVE_PROVIDER=google GENERATIVE_MODEL=<model-id> GOOGLE_GENERATIVE_AI_API_KEY=<key>
  *      bun examples/17-generative-models.ts
+ * This dedicated lesson always uses Generative; QUESTIONS_PROVIDER is not consulted.
+ * Other lessons use QUESTIONS_PROVIDER=generative with these same GENERATIVE_* settings.
  * Cost: one potentially paid inference. There is no automatic comparison, replay or repair.
  * Output: validated release assessment, field diagnostics and explicit estimated provenance.
  * Probabilities are elicited estimates, not measured model accuracy; validate your own thresholds.
  */
 import { z } from "zod";
-import { Questions, Schema } from "../src/index.ts";
+import { Questions, Schema, Duration, type DurationInput } from "../src/index.ts";
 import * as Generative from "../src/providers/generative.ts";
-import { cli, required } from "./shared/runtime.ts";
+import { cli, languageModel } from "./shared/runtime.ts";
 
 const release = {
   changes: ["Database index added", "Cache invalidation changed"],
@@ -41,12 +43,12 @@ export const assessment = z.object({
 });
 
 /** Keep the same public schema regardless of the configured language model's provider. */
-export async function tutorial(model: Generative.Model) {
+export async function tutorial(model: Generative.Model, timeout: DurationInput = "20 seconds") {
   const client = Questions.create({
     model: Generative.create({
       model,
       evidence: "estimated",
-      timeout: "20 seconds",
+      timeout,
       maxRetries: 0,
     }),
     defaults: { timeout: "30 seconds" },
@@ -59,35 +61,12 @@ export async function tutorial(model: Generative.Model) {
   };
 }
 
-/** Model IDs and credentials are explicit; import only the selected provider's factory. */
-async function languageModel(): Promise<Generative.Model> {
-  const id = required("GENERATIVE_MODEL");
-  switch (required("GENERATIVE_PROVIDER")) {
-    case "google": {
-      const { createGoogleGenerativeAI } = await import("@ai-sdk/google");
-      return createGoogleGenerativeAI({ apiKey: required("GOOGLE_GENERATIVE_AI_API_KEY") })(id);
-    }
-    case "anthropic": {
-      const { createAnthropic } = await import("@ai-sdk/anthropic");
-      return createAnthropic({ apiKey: required("ANTHROPIC_API_KEY") })(id);
-    }
-    case "openai": {
-      const { createOpenAI } = await import("@ai-sdk/openai");
-      return createOpenAI({ apiKey: required("OPENAI_API_KEY") })(id);
-    }
-    case "gateway": {
-      const { createGateway } = await import("@ai-sdk/gateway");
-      // This is a LANGUAGE model, not gateway.evaluationModel("typesafe-ai/jev").
-      return createGateway({ apiKey: required("AI_GATEWAY_API_KEY") })(id);
-    }
-    default:
-      throw new Error("Set GENERATIVE_PROVIDER to google, anthropic, openai or gateway.");
-  }
-}
-
 if (import.meta.main)
   await cli(async () => {
-    const result = await tutorial(await languageModel());
+    const result = await tutorial(
+      await languageModel(),
+      Duration.parse(process.env.EXAMPLE_TIMEOUT ?? "20 seconds"),
+    );
     // These fictional demo diagnostics can include prompt text. Do not log real inputs indiscriminately.
     console.log(JSON.stringify(result, null, 2));
   });

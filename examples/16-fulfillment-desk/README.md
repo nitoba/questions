@@ -78,7 +78,7 @@ export TYPESAFE_API_KEY='your-own-key'
 bun examples/16-fulfillment-desk/main.ts process 20
 ```
 
-Or choose Gateway explicitly:
+Or choose **Jev evaluation through Gateway** explicitly:
 
 ```sh
 export QUESTIONS_PROVIDER=vercel
@@ -86,18 +86,43 @@ export AI_GATEWAY_API_KEY='your-own-key'
 bun examples/16-fulfillment-desk/main.ts process 20
 ```
 
+Or use a language model through the **same application**, without changing the assessment schema:
+
+```sh
+export QUESTIONS_PROVIDER=generative
+export GENERATIVE_PROVIDER=google
+export GENERATIVE_MODEL='your-structured-output-model-id'
+export GOOGLE_GENERATIVE_AI_API_KEY='your-own-key'
+bun examples/16-fulfillment-desk/main.ts process 20
+```
+
+Use `GENERATIVE_PROVIDER=anthropic` with `ANTHROPIC_API_KEY`, `openai` with `OPENAI_API_KEY`,
+or `gateway` with `AI_GATEWAY_API_KEY` and a Gateway provider/model identifier. Choose a model
+that supports structured output. See the [shared configuration matrix](../README.md#choose-one-model-configuration)
+and [generative adapter lesson](../17-generative-models.ts). A missing key or model ID fails
+before processing; it does not trigger a fallback to Jev. `assess` supports the same selection.
+Non-model commands still require no SDK/model configuration and do not start inference.
+
 `process` selects at most 20 queued cases by default (maximum 100), claims each atomically
 and evaluates with concurrency 2. Each case has a 30-second operation budget and a 0.65
-confidence minimum. Native/Gateway confidence metrics differ: validate thresholds with
-your own representative dataset instead of assuming cross-provider calibration.
+confidence minimum. Native evaluation and generated estimates use different confidence semantics:
+validate thresholds on your own representative dataset, rather than assuming cross-provider
+calibration. `EXAMPLE_TIMEOUT` changes the provider budget, not this 30-second operation deadline.
+The shared runtime uses no native or SDK retries by default.
 
 One accepted assessment stores a schema-version label, operation ID, parsed output,
-reported usage, evidence and field diagnostics. No real tracking data is fabricated or
+reported usage, evidence and field diagnostics. Generative answers retain
+`probabilitySource: "estimated"` separately from `confidenceSource`; the stored evidence includes
+`providerMetadata.questionsGenerative` with the model/strategy/prompt version. A native `provider`
+marker identifies the evaluation protocol, not a guarantee of calibrated accuracy. No real tracking data is fabricated or
 fetched behind the scenes: the assessment is based on the supplied notes and fields.
 
 Confident results propose a fixed action. Uncertain or schema-rejected results also
 enter `review`, but without inventing an accepted output. Both need an operator.
-Transport/protocol failures enter `failed`; the command returns nonzero if any case failed.
+Transport/protocol failures enter `failed`; invalid generated distributions, refusals and
+truncated output are also failures, not fabricated decisions. The command returns nonzero if any
+case failed. SDK transport errors may be surfaced as application failures; the claimed case is
+still marked failed, and no action is approved. The shared CLI does not dump raw SDK causes.
 
 To assess a single queued case without any stream pipeline:
 
@@ -106,7 +131,7 @@ bun examples/16-fulfillment-desk/main.ts assess SHIP-001
 ```
 
 A case that is not queued is skipped. Re-running `process` after completing all input does
-not repeat inference. Stream concurrency is a per-process bound, not a global distributed
+not repeat inference. Changing the selected provider does not silently reassess completed cases. Stream concurrency is a per-process bound, not a global distributed
 rate limiter.
 
 ## 3. Start the review API
@@ -241,6 +266,11 @@ cooperative work and mark claimed failures; a hard crash requires the manual rec
 ```sh
 bun test examples/tests/fulfillment-desk.test.ts
 ```
+
+The [generative workflow tests](../tests/generative-workflows.test.ts) additionally exercise
+both `assessOne()` and the stream worker through the real Generative adapter with controlled
+language-model output. Accepted and uncertain decisions keep their probability provenance;
+reports and drained workers perform no extra inference, and neither path approves notifications.
 
 The tests use actual SQLite files/reopening, HTTP over a real local socket and the same
 application modules as the CLI. Only model responses and a deliberate lost acknowledgement

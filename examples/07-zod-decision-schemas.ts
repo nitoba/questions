@@ -2,6 +2,7 @@
  * 07 — Inspect a return request with a Zod-defined output.
  *
  * Run: TYPESAFE_API_KEY=... bun examples/07-zod-decision-schemas.ts
+ * Or select QUESTIONS_PROVIDER=generative; see the shared configuration in examples/README.md.
  * One evaluation. Zod, no streams.
  * Learn: describe, metadata, typed annotations, probability vs score, z.output and transforms.
  * Input is a fixed set of decisions, not arbitrary generated strings or variable arrays.

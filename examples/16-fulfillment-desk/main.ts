@@ -21,7 +21,9 @@ const usage = `Usage: bun examples/16-fulfillment-desk/main.ts <command>
   deliver                 Send approved outbox records to WEBHOOK_URL using WEBHOOK_TOKEN
   serve                   Start the authenticated loopback review API on DESK_PORT (default 3131)
 Environment: DESK_DB (default .data/fulfillment-desk.sqlite), DESK_TOKEN.
-Paid commands additionally require TYPESAFE_API_KEY, or QUESTIONS_PROVIDER=vercel + AI_GATEWAY_API_KEY.`;
+Paid commands use QUESTIONS_PROVIDER=typesafe|vercel|generative (default typesafe).
+Generative also needs GENERATIVE_PROVIDER=google|anthropic|openai|gateway, GENERATIVE_MODEL,
+and that vendor's API key. See examples/README.md. Other commands need no model configuration.`;
 
 export async function main(args = process.argv.slice(2)): Promise<void> {
   const command = args[0];

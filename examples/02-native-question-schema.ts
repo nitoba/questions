@@ -2,6 +2,7 @@
  * 02 — A typed decision shape without Zod: classify an equipment maintenance note.
  *
  * Run: TYPESAFE_API_KEY=... bun examples/02-native-question-schema.ts
+ * Or select QUESTIONS_PROVIDER=generative; see the shared configuration in examples/README.md.
  * One batched evaluation + one standalone score. No Zod and no streams.
  * "Schema" here means a native Question.Batch, NOT JSON Schema or a Zod-compatible codec.
  * Learn: boolean criteria, choice literals, score rubrics, Values inference, satisfies.

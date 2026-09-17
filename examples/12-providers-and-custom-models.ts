@@ -2,12 +2,12 @@
  * 12 — Choose a protocol, not just a base URL.
  *
  * Run: TYPESAFE_API_KEY=... bun examples/12-providers-and-custom-models.ts typesafe
- * Modes: typesafe | jev | vercel | sdk | system-one. Exactly one evaluation in the selected mode.
+ * Modes: typesafe | jev | vercel | sdk | system-one | generative. Exactly one evaluation in the selected mode.
  * No Zod and no streams. Optional SDK imports are lazy; credentials are always explicit.
  * Learn: native presets, a custom host, existing Evaluation V4 models and QuestionModel decoration.
  */
 import { Questions, TypeSafe, SystemOne, Jev, type QuestionModel } from "../src/index.ts";
-import { cli, required } from "./shared/runtime.ts";
+import { cli, liveModel, required } from "./shared/runtime.ts";
 
 /** A real decorator, not a fake LLM. It forwards the full request, original this, and signal. */
 export function measured(model: QuestionModel, record: (elapsedMs: number) => void): QuestionModel {
@@ -54,8 +54,11 @@ export async function selectedProvider(mode: string): Promise<QuestionModel> {
         confidence: (evidence) => Math.max(...Object.values(evidence.probabilities)),
       });
     }
+    case "generative":
+      // Tutorial 17 opens up this adapter; here we focus on the shared QuestionModel boundary.
+      return liveModel({ ...process.env, QUESTIONS_PROVIDER: "generative" });
     default:
-      throw new Error("Choose typesafe, jev, vercel, sdk or system-one.");
+      throw new Error("Set the mode to typesafe, jev, vercel, sdk, system-one or generative.");
   }
 }
 export async function main(model: QuestionModel) {
@@ -64,8 +67,15 @@ export async function main(model: QuestionModel) {
   const evidence = await client.about("The course teaches TypeScript fundamentals.").evidence({
     beginnerFriendly: "Does the course target beginners?",
   });
-  console.log({ model: evidence.model, usage: evidence.usage, timings });
+  console.log({
+    model: evidence.model,
+    usage: evidence.usage,
+    timings,
+    probabilitySource: evidence.answers.beginnerFriendly.probabilitySource ?? "unreported",
+  });
   return { evidence, timings };
 }
 if (import.meta.main)
-  await cli(async () => main(await selectedProvider(process.argv[2] ?? "typesafe")));
+  await cli(async () =>
+    main(await selectedProvider(process.argv[2] ?? process.env.QUESTIONS_PROVIDER ?? "typesafe")),
+  );
