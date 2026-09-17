@@ -86,34 +86,11 @@ With npm:
 npm install '@nitoba/questions@next' 'zod@^4.0.0'
 \`\`\`
 
-Then create a client and ask your first typed question:
-
-\`\`\`ts
-import { Questions, TypeSafe } from "@nitoba/questions";
-
-const apiKey = process.env.TYPESAFE_API_KEY;
-if (!apiKey) throw new Error("Set TYPESAFE_API_KEY");
-
-const questions = Questions.create({
-  model: TypeSafe.create({ apiKey, timeout: "15 seconds" }),
-});
-
-const ticket = {
-  title: "Production API is unavailable",
-  details: "Every request returns 503 after the deployment.",
-};
-
-const urgent = await questions.about(ticket).is("Is production work blocked?");
-console.log(urgent); // boolean, inferred and validated
-\`\`\`
-
 The root import requires the Zod 4 peer even when you use only native question batches. Optional
 Gateway and generative integrations have additional peers described in [Providers](#providers).
 Live model calls require your own provider credentials and may incur charges.
 
-If you want to learn the full API, see the [examples and tutorial path](examples/README.md). Those
-examples live in this repository and are intended for learning, testing and development; using the
-published package in an application does **not** require cloning the repository.
+Create a client and ask your first typed question:
 `;
 
 if (!text.includes(oldQuickStart)) throw new Error("README quick-start block changed unexpectedly");
