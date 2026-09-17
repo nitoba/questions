@@ -1,0 +1,32 @@
+name: HTTP integration workspace
+on:
+  push:
+    branches: [feat/ofetch-retry-replay]
+    paths: [.github/workflows/http-workspace.yml]
+permissions:
+  contents: read
+jobs:
+  workspace:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22.16.0"
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.4.2"
+      - run: bun install --frozen-lockfile && bun add --exact ofetch@1.5.0
+      - name: Export isolated source and development toolchain
+        run: |
+          mkdir -p .validation-tools
+          cp "$(command -v bun)" .validation-tools/bun
+          tar --exclude='./.git' -czf /tmp/questions-http.tgz .
+      - uses: actions/upload-artifact@v4
+        with:
+          name: questions-http-workspace
+          path: /tmp/questions-http.tgz
+          retention-days: 1
