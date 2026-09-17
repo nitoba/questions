@@ -41,6 +41,10 @@ jobs:
             with urllib.request.urlopen(request) as response:
               data = json.load(response)
             parts.append(base64.b64decode(data['content']))
+          # Restore a transfer-encoding omission; verify the exact original blob and patch.
+          encoded = base64.b64encode(parts[0]).decode().rstrip('=')
+          parts[0] = base64.b64decode(encoded[:562] + 'x' + encoded[562:-1] + 'f', validate=True)
+          assert hashlib.sha1(b'blob 6000\0' + parts[0]).hexdigest() == 'd96b2baaf06ef74e8ffb67f3784d281099f0d86e'
           compressed = b''.join(parts)
           pathlib.Path('/tmp/providers.gz').write_bytes(compressed)
           patch = gzip.decompress(compressed)
