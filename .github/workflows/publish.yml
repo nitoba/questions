@@ -49,11 +49,11 @@ jobs:
       - run: bun install --frozen-lockfile
 
       - name: Validate publishable tarball
-        if: ${{ inputs.dry_run }}
+        if: ${{ inputs.dry_run == true }}
         run: npm publish --dry-run --access public --tag next
 
       - name: Require first-publish credentials
-        if: ${{ !inputs.dry_run }}
+        if: ${{ inputs.dry_run == false }}
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
@@ -63,7 +63,7 @@ jobs:
           fi
 
       - name: Publish release candidate
-        if: ${{ !inputs.dry_run }}
+        if: ${{ inputs.dry_run == false }}
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: npm publish --access public --tag next
