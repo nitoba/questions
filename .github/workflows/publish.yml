@@ -1,0 +1,69 @@
+name: Publish to npm
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Exact package version expected in package.json
+        required: true
+        default: 0.1.0-rc.1
+        type: string
+      dry_run:
+        description: Validate the release without publishing
+        required: true
+        default: true
+        type: boolean
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          registry-url: https://registry.npmjs.org
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.4.2"
+
+      - name: Verify requested version
+        env:
+          EXPECTED_VERSION: ${{ inputs.version }}
+        run: |
+          ACTUAL_VERSION="$(node -p "require('./package.json').version")"
+          test "$ACTUAL_VERSION" = "$EXPECTED_VERSION" || {
+            echo "Expected $EXPECTED_VERSION but package.json contains $ACTUAL_VERSION" >&2
+            exit 1
+          }
+
+      - run: bun install --frozen-lockfile
+
+      - name: Validate publishable tarball
+        if: ${{ inputs.dry_run }}
+        run: npm publish --dry-run --access public --tag next
+
+      - name: Require first-publish credentials
+        if: ${{ !inputs.dry_run }}
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          if [ -z "$NODE_AUTH_TOKEN" ]; then
+            echo "NPM_TOKEN is required for the first publication. After the package exists, configure npm Trusted Publishing for publish.yml and the OIDC permission above can be used instead." >&2
+            exit 1
+          fi
+
+      - name: Publish release candidate
+        if: ${{ !inputs.dry_run }}
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: npm publish --access public --tag next
