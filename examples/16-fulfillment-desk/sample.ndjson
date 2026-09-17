@@ -1,0 +1,4 @@
+{"id":"SHIP-001","orderId":"ORDER-101","carrier":"North Parcel","daysLate":5,"priority":"priority","notes":"Tracking has not changed for five days. The parcel is awaiting departure at the sorting center."}
+{"id":"SHIP-002","orderId":"ORDER-102","carrier":"City Courier","daysLate":1,"priority":"standard","notes":"The driver cannot find the building because the apartment number is missing."}
+{"id":"SHIP-003","orderId":"ORDER-103","carrier":"West Freight","daysLate":0,"priority":"standard","notes":"The customer reports torn packaging and a cracked lamp base. Photos have not yet been verified."}
+{"id":"SHIP-004","orderId":"ORDER-104","carrier":"North Parcel","daysLate":0,"priority":"standard","notes":"Customer asked for an update but provided no exception details."}
