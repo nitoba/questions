@@ -1,81 +1,138 @@
 # Questions
 
-Typed semantic decisions in ordinary TypeScript. **No Effect. Schema-first decisions with Zod 4.**
+**Typed semantic decisions for TypeScript.** Ask questions about your data, inspect the evidence,
+and decide what happens next using ordinary `async`/`await` or native Web Streams.
 
-Ask yes/no questions, choose among your own objects, score against explicit rubrics, and branch on validated evidence. Use Zod schemas for inferred output types, runtime validation and natural-language guidance. Compose these operations with lazy, cancellable **native Web Streams**.
+Define decisions with Zod 4 schemas or native typed question batches. Switch between TypeSafe AI,
+Vercel AI Gateway and compatible endpoints without rewriting your questions. Add confidence gates,
+readable deadlines, explicit retries, replay and observability as your application grows.
 
-This is an independent implementation inspired by [effect-questions](https://github.com/saiashirwad/effect-questions), not an Effect wrapper. **Alpha: API may change; not published to npm by this implementation.**
+No Effect dependency, service container or alternative execution runtime. Independently inspired
+by [effect-questions](https://github.com/saiashirwad/effect-questions).
 
-## Learn through executable examples
+> **Alpha:** this README describes the `0.1.0-alpha.5` API. See the [changelog](CHANGELOG.md)
+> and [migration guide](docs/migration.md) before upgrading. Decisions are finite classifications,
+> not arbitrary JSON generation, factual guarantees or authorization to execute business actions.
 
-Start with the [progressive tutorial index](examples/README.md): native typed question batches,
-Zod Classic/Mini, evidence, policies, replay, provider selection and Web Streams. Each lesson
-uses a different scenario and declares its request cost. The [fulfillment desk](examples/16-fulfillment-desk/README.md)
-combines real SQLite persistence, a review API, bounded inference and a transactional notification outbox.
+[Quick start](#quick-start) · [Providers](#providers) · [Schemas](#zod-schemas) ·
+[Streams](#web-streams) · [Tutorials](examples/README.md) · [Documentation](#documentation)
 
-Run `bun run test:examples` for offline executable checks. Only explicit live commands use your
-model credentials; tests never fall back to a paid provider.
+## Quick start
 
-## Run from source
-
-Use Bun **1.4.2**. The toolchain pins TypeScript **7.0.2**, Oxlint, Oxfmt and tsdown in `bun.lock`.
+Use the Bun version pinned in [package.json](package.json) to work on the repository:
 
 ```sh
 git clone https://github.com/nitoba/questions.git
 cd questions
 bun install --frozen-lockfile
-bun run check
-TYPESAFE_API_KEY=your-key bun examples/02-native-question-schema.ts
+bun run test:examples
 ```
 
-Live examples require a TypeSafe API key and may incur charges. Tests use deterministic provider fixtures and an in-process HTTP server, never a live paid model. The repository is private unless its owner changes visibility.
-
-To install a local build into another project:
+The tests require no API keys and do not call paid models. To run a live tutorial:
 
 ```sh
+TYPESAFE_API_KEY='your-own-key' bun examples/01-first-question.ts
+```
+
+The [learning path](examples/README.md) includes native questions, Zod, non-streaming workflows,
+streams and a complete application. [Environment setup](examples/.env.example) documents the
+available provider settings. Live commands may incur charges; there is no automatic fake-model
+fallback or command that runs every paid tutorial.
+
+### Use a local build in another project
+
+These commands do not depend on the package being published to npm:
+
+```sh
+# In this repository:
 bun run build
 bun pm pack --filename /tmp/questions.tgz
+
+# In your application:
 cd ../your-app
-bun add /tmp/questions.tgz zod
+bun add /tmp/questions.tgz 'zod@^4.0.0'
 ```
 
-## Choose a provider
-
-Schemas, batches and streams stay the same when you change providers:
-
-```ts
-import { Questions, TypeSafe, SystemOne } from "@nitoba/questions";
-
-const direct = Questions.create({ model: TypeSafe.create({ apiKey: typesafeKey }) });
-const hosted = Questions.create({
-  model: SystemOne.create({ baseURL: inferenceURL, apiKey: inferenceKey, model: evaluationModel }),
-});
-```
-
-Vercel AI Gateway uses its official **evaluation** SDK protocol, not OpenAI-compatible chat:
+The root import requires the Zod 4 peer, even when your application uses only native question
+batches. Vercel support has an additional optional peer; see [Providers](#providers).
+The examples in this repository import source files so they can run without a build.
+The snippets below use package imports and run in server-side TypeScript on Node or Bun.
 
 ```ts
-import { Questions } from "@nitoba/questions";
-import * as Vercel from "@nitoba/questions/providers/vercel";
+import { Questions, TypeSafe } from "@nitoba/questions";
+
+const apiKey = process.env.TYPESAFE_API_KEY;
+if (!apiKey) throw new Error("Set TYPESAFE_API_KEY");
 
 const questions = Questions.create({
-  model: Vercel.create({ apiKey: gatewayKey, model: "typesafe-ai/jev" }),
+  model: TypeSafe.create({ apiKey, timeout: "15 seconds" }),
 });
+
+const ticket = {
+  title: "Production API is unavailable",
+  details: "Every request returns 503 after the deployment.",
+};
+
+const urgent = await questions.about(ticket).is("Is production work blocked?");
+console.log(urgent); // boolean, inferred and validated
 ```
 
-Install the optional `@ai-sdk/gateway` peer for Vercel. Its SDK requires Zod >=4.1.8 when used with Questions. The package root, native providers and streams never load that SDK. `@nitoba/questions/providers/ai-sdk` also adapts an existing Evaluation V4 model, including an SDK instance already configured for authentication or routing. `Jev.create` remains compatible.
+Later snippets reuse `questions` and `ticket`. Each operation invocation starts new work;
+re-awaiting the same Promise does not. Construction alone performs no inference.
 
-**Confidence is not identical across protocols.** TypeSafe retains its confidence; the AI SDK bridge uses an explicit top-two probability margin for choice/score and identifies its origin. Missing distributions fail rather than inventing certainty. Usage counters may be unreported. Read [the provider guide](docs/providers.md) for complete setup, custom endpoints, evidence contracts and transport guarantees. Run the live Gateway example with `AI_GATEWAY_API_KEY=your-key bun examples/12-providers-and-custom-models.ts vercel`.
+## Providers
 
-## Ask with a Zod schema
+All integrations return a `QuestionModel` for `Questions.create({ model })`:
+
+| Integration          | Purpose                                              | Configuration                                              |
+| -------------------- | ---------------------------------------------------- | ---------------------------------------------------------- |
+| `TypeSafe.create()`  | Direct TypeSafe AI access                            | Explicit `apiKey`; default model `jev-latest`              |
+| `SystemOne.create()` | A host implementing the System One protocol          | Explicit `baseURL` and `model`; optional `apiKey`          |
+| `Vercel.create()`    | Official Vercel AI Gateway evaluation SDK            | Explicit `apiKey`; default model `typesafe-ai/jev`         |
+| `AISDK.create()`     | Reuse an existing AI SDK evaluation model            | An Evaluation V4 model instance                            |
+| `Jev.create()`       | Compatible TypeSafe preset for existing applications | Retains its diagnostic name and the old `baseUrl` spelling |
+
+### Vercel AI Gateway
+
+In the consuming project, install the optional Gateway peer and a compatible Zod version:
+
+```sh
+bun add '@ai-sdk/gateway@^4.0.85' 'zod@^4.1.8'
+```
+
+```ts
+import * as Vercel from "@nitoba/questions/providers/vercel";
+
+const gatewayKey = process.env.AI_GATEWAY_API_KEY;
+if (!gatewayKey) throw new Error("Set AI_GATEWAY_API_KEY");
+
+const gatewayQuestions = Questions.create({
+  model: Vercel.create({ apiKey: gatewayKey, timeout: "15 seconds" }),
+});
+
+const viaGateway = await gatewayQuestions.about(ticket).is("Is production work blocked?");
+```
+
+The root does not import the optional Gateway SDK. The SDK bridge is available separately at
+`@nitoba/questions/providers/ai-sdk`. TypeSafe and SystemOne are also available through their
+own subpaths. New configuration uses `baseURL`.
+
+**A different URL is not a different protocol.** SystemOne expects System One request/response
+JSON; Vercel uses the SDK's evaluation protocol, not OpenAI-compatible chat. `AISDK.create()`
+accepts evaluation models, not language/chat models. Schemas and stream pipelines remain the
+same, but confidence metrics can differ between providers.
+
+See the [provider guide](docs/providers.md) and
+[provider tutorial](examples/12-providers-and-custom-models.ts) for custom endpoints,
+transport injection, existing SDK instances and implementing `QuestionModel.evaluate`.
+
+## Zod schemas
+
+One schema supplies instructions, inferred output types and runtime validation:
 
 ```ts
 import { z } from "zod";
-import { Jev, Questions, Schema } from "@nitoba/questions";
-
-const apiKey = process.env.TYPESAFE_API_KEY;
-if (!apiKey) throw new Error("Missing TYPESAFE_API_KEY");
-const questions = Questions.create({ model: Jev.create({ apiKey }) });
+import { Schema } from "@nitoba/questions";
 
 const triage = z.object({
   urgent: z.boolean().describe("Does the issue prevent production work?"),
@@ -91,263 +148,360 @@ const triage = z.object({
     .max(2)
     .register(Schema.registry, {
       kind: "score",
-      instructions: "How disruptive is the problem?",
+      instructions: "How disruptive is the incident?",
       levels: ["Minor", "Impaired", "Unavailable"],
     }),
 });
 
-const result = await questions.about("The API is returning 503").ask(triage);
+const result = await questions.about(ticket).ask(triage);
 // { urgent: boolean; team: "billing" | "platform"; impact: number }
+type Triage = z.output<typeof triage>;
 ```
 
-`ask(schema)` returns `z.output<typeof schema>`, with **actual asynchronous Zod parsing**, not a cast. Descriptions, approved metadata and typed annotations guide inference. Refinements, transforms, defaults and readonly modifiers retain their Zod semantics. The same overload works with `each(...).ask(schema)` and inside stream operators.
+`ask(schema)` uses asynchronous Zod parsing and returns `z.output<S>`, including output
+transforms, refinements, defaults, brands and readonly modifiers. Independent decision fields
+are evaluated together in one model call. Constant-only schemas need no inference.
 
-The current protocol supports finite decisions, not free-form JSON extraction. Use booleans, enums, nested objects, fixed tuples and annotated numbers; unsupported schemas fail before calling the provider. Zod is a required peer for the root package and `/schema`; `/streams` and `/providers/jev` remain independently usable without it. Zod is the required runtime peer; the Vercel subpath has an optional Gateway SDK peer. No Effect dependency is introduced.
+Use `.describe()` for simple guidance, `.meta()` for standard metadata plus the `questions`
+namespace, or `.register(Schema.registry, ...)` / `Schema.annotate()` for typed annotations.
+Only approved guidance is forwarded, not arbitrary application metadata. Register annotations
+on the final schema instance; later Zod methods can create a new instance.
 
-See [the schema guide](docs/schemas.md) for `.describe()`, `.meta()`, `Schema.registry`, probability vs score, optionals, errors, cancellation and advanced compiled plans. Run the complete live example with `TYPESAFE_API_KEY=your-key bun examples/07-zod-decision-schemas.ts`.
+Numbers need an explicit meaning: `kind: "probability"` returns `P(true)` in `[0, 1]`;
+`kind: "score"` returns the weighted, zero-based rubric index. Three levels give `[0, 2]`,
+including fractions. `.int()` validates; it does not round the result.
 
-## Client policies, hooks and human-readable durations
+The finite-decision compiler supports booleans, enums, primitive literal unions, nested objects,
+fixed tuples and supported wrappers such as optional/nullable fields. Free-form strings without
+options, variable arrays, records, object unions and recursive inputs are rejected before
+inference. A transform can produce richer output locally; it does not extract new facts.
+Zod Classic and Mini are supported. See the [schema guide](docs/schemas.md) for the full matrix.
 
-```ts
-const client = Questions.create({
-  model: TypeSafe.create({
-    apiKey,
-    timeout: "15 seconds",
-    retry: { maxRetries: 2, initialDelay: "200 ms", maxDelay: "3 s" },
-  }),
-  defaults: { confidence: 0.6, timeout: "30 seconds" },
-  hooks: {
-    onEvaluate: ({ operationId }) => console.log("Started", operationId),
-    onDecision: ({ usage, elapsedMs }) => console.log("Validated", usage, elapsedMs),
-    onError: ({ kind, stage }) => console.log("Failed", kind, stage),
-  },
-});
-const support = client.extend({ defaults: { confidence: 0.7 } });
-const run = await support.about(ticket).run(triage);
-console.log(run.value, run.operationId, run.diagnostics);
-```
+## Native typed questions — no Zod schema
 
-Semantic hooks describe one top-level operation, not every HTTP attempt. Derived clients are immutable: parent < child < call; schema confidence minima cannot be weakened. Client timeouts cover context, provider and Zod; provider timeouts remain separate. `timeout: false` clears a client deadline without disabling a caller signal. Numeric `*Ms` options remain supported, but cannot be combined with the corresponding new spelling.
-
-`Duration` (root namespace or `/duration`) accepts typed units such as `"200 milis"`, `"1.5 s"` and `"2 minutes"`; use `Duration.parse()` for environment strings. Unknown units such as `"secods"` are rejected. `Schema.compile(schema).fields` maps question IDs to lossless input paths; `.diagnose(evidence)` joins existing evidence without inference or Zod callbacks. Diagnostics are also attached to schema/confidence errors and `run()` results, but never included in default telemetry.
-
-See [semantic DX and durations](docs/semantic-dx.md) for precedence, hook failure/cancellation, replay inheritance, privacy and path semantics. The runnable example is `examples/09-derived-clients-and-observability.ts` (requires a TypeSafe key).
-
-## Existing question-batch API
+Native definitions are a first-class alternative, not a legacy API:
 
 ```ts
-import { Jev, Question, Questions } from "@nitoba/questions";
+import { Question } from "@nitoba/questions";
 
-const apiKey = process.env.TYPESAFE_API_KEY;
-if (!apiKey) throw new Error("Missing TYPESAFE_API_KEY");
-
-const questions = Questions.create({
-  model: Jev.create({ apiKey, timeoutMs: 15_000 }),
-});
-
-const q = questions.about({ title: "Production API is unavailable after deployment" });
-const result = await q.ask({
+const review = {
   blocked: "Is production work blocked?",
-  team: Question.choice("Which team owns the problem?", {
+  owner: Question.choice("Who should investigate?", {
     billing: "Invoices and payments",
-    platform: "API outages and deployments",
+    platform: "Infrastructure and deployments",
   }),
   impact: Question.score("How disruptive?", ["Low", "Impaired", "Unavailable"]),
+} satisfies Question.Batch;
+
+const nativeResult = await questions.about(ticket).ask(review);
+// { readonly blocked: boolean; readonly owner: "billing" | "platform"; readonly impact: number }
+type NativeResult = Question.Values<typeof review>;
+```
+
+The model's response is still validated. Native batches are named boolean, choice and score
+definitions, not arbitrary JSON Schema or an adapter for another schema library.
+
+| Operation                    | Result                                                         |
+| ---------------------------- | -------------------------------------------------------------- |
+| `q.is()` / `q.probability()` | Most likely boolean / `P(true)`                                |
+| `q.score()`                  | Weighted rubric index                                          |
+| `q.choose()` / `q.rank()`    | An original candidate / all candidates ordered by probability  |
+| `q.branch()`                 | The return value of the one selected handler                   |
+| `q.ask()`                    | Parsed schema output or projected native batch values          |
+| `q.evidence()`               | Validated distributions, model, reported usage and metadata    |
+| `q.run()`                    | Value, evidence, diagnostics, operation ID and explicit replay |
+| `q.prepare()`                | Captured inputs and a reusable run handle, without inference   |
+
+`choose` and `rank` accept arrays or keyed records and preserve original object identity; only
+candidate descriptions are sent. `branch` runs no handler if its confidence gate fails, and
+never retries a handler or silently selects a fallback. See [selection and routing](examples/03-select-and-route.ts).
+
+### Live context and batches
+
+`questions.about(() => currentContext)` reads fresh context per ordinary operation. The source
+may be asynchronous and receives `{ signal }`. Prepared runs and replay keep a snapshot instead.
+
+```ts
+const tickets = [ticket, { title: "Invoice request", details: "Please resend the last invoice." }];
+const batchResults = await questions.each(tickets).ask(triage);
+// Triage[], in input order, from one batched evaluation
+```
+
+`each` also supports a description callback for redaction, `.is()` and `.score()`.
+Empty collections perform no inference. Batching is not per-item concurrency and still obeys
+provider context/criteria limits. See [batching](examples/04-collection-batching.ts) and
+[live investigation](examples/05-live-context-investigation.ts).
+
+## Defaults, hooks and durations
+
+Derive policies without changing the original client:
+
+```ts
+const support = questions.extend({
+  defaults: { confidence: 0.6, timeout: "30 seconds" },
+  hooks: {
+    onEvaluate: ({ operationId, operation }) => console.log("Started", operationId, operation),
+    onDecision: ({ operationId, usage, elapsedMs }) =>
+      console.log("Validated", operationId, usage, elapsedMs),
+    onError: ({ operationId, kind, stage }) => console.log("Failed", operationId, kind, stage),
+  },
 });
-// result: { readonly blocked: boolean; readonly team: "billing" | "platform"; readonly impact: number }
+
+const accepted = await support.about(ticket).ask(triage, { timeout: "10 seconds" });
 ```
 
-One `ask` is **one provider evaluation**, regardless of the number of independent questions. A score is a probability-weighted, zero-based rubric index: three levels produce a number in `[0, 2]`, including fractional values.
+The same `defaults` and `hooks` options work in `Questions.create()`. Precedence is
+**base client < derived client < call**. Defaults and hook arrays are snapshotted; children do
+not mutate parents. Schema confidence minimums cannot be weakened by a call-level override.
+`timeout: false` removes an inherited operation deadline, not caller cancellation or a provider
+budget. Signals belong to individual calls, never client defaults.
 
-`q.is`, `q.probability`, `q.score`, `q.choose`, `q.rank`, `q.branch`, and `q.evidence` each perform a new evaluation when called. Re-awaiting the same Promise does **not** perform another evaluation. There is no global client, service container or hidden runtime.
+An operation deadline covers context, compilation, hooks, provider work including retries and
+Zod parsing. Batches share one deadline; `branch()` also bounds the wait for its handler.
+Provider timeouts are separate. Cancellation is cooperative and cannot undo completed effects.
 
-## Keep decisions explicit
+Semantic hooks describe **one public operation**, not each HTTP attempt or internal helper.
+`onDecision` follows validation and applicable confidence gates, before a branch handler.
+`onError` classifies terminal failures. Hooks compose parent-first, may be asynchronous, and
+exclude prompts, values, credentials, raw errors and field diagnostics.
+
+`hooks: false` clears inherited hooks; `hooks: { onDecision: false }` clears one event.
+Throwing hooks stop the operation without retrying. See [semantic lifecycle contracts](docs/semantic-dx.md)
+for cancellation, handler failures and evidence-only operations.
+
+### Readable time values
 
 ```ts
-import { UncertainDecision } from "@nitoba/questions";
+import { Duration, type DurationInput } from "@nitoba/questions";
 
-try {
-  const destination = await q.branch(
-    "What kind of help is needed?",
-    {
-      "Invoice or payment problem": () => ({ queue: "billing" }),
-      "Bug, outage or deployment failure": async () => ({ queue: "platform" }),
+const delay: DurationInput = "200 milis";
+const milliseconds = Duration.toMilliseconds(delay); // 200
+const configuredTimeout = Duration.parse(process.env.OPERATION_TIMEOUT ?? "30 seconds");
+```
+
+`timeout`, `initialDelay`, `maxDelay` and `delay` accept numbers in milliseconds or strings such
+as `"200 ms"`, `"200 millis"`, `"1.5 seconds"`, `"2 min"` and `"1 hour"`. Conversion uses the
+published `ms` package behind a strict, whole-millisecond boundary. Validate external strings
+with `Duration.parse()`; unknown units, unitless strings, mixed-unit expressions and invalid
+ranges are rejected. Execution timers additionally enforce platform limits.
+
+Numeric `timeoutMs`, `initialDelayMs`, `maxDelayMs` and `delayMs` remain deprecated aliases;
+do not supply both spellings. Output measurements such as `elapsedMs` remain numbers.
+`@nitoba/questions/duration` is independently importable.
+
+## HTTP retries
+
+Questions-owned HTTP transports use ofetch. TypeSafe, SystemOne, Jev and Vercel share the same
+public retry and transport-hook options:
+
+```ts
+const resilient = Questions.create({
+  model: TypeSafe.create({
+    apiKey,
+    timeout: "20 seconds",
+    retry: {
+      maxRetries: 2,
+      statusCodes: [429, 503, 529],
+      initialDelay: "200 ms",
+      maxDelay: "3 seconds",
+      jitter: true,
     },
-    { confidence: 0.6 },
-  );
-  console.log(destination);
-} catch (error) {
-  if (!(error instanceof UncertainDecision)) throw error;
-  console.log("Needs human review", error.evidence);
+    hooks: {
+      onRetry: ({ nextAttempt, delayMs }) => console.log("HTTP retry", nextAttempt, delayMs),
+    },
+  }),
+});
+```
+
+Retries are **off by default**. `retry: 2` allows two additional attempts for `429`/`529`;
+network failures require separate `networkErrors: true` opt-in. Fixed or callback `delay`
+values are also supported. `Retry-After` is a minimum; excessive waits stop retries rather than
+retrying too early. One total provider budget includes attempts, hooks, body reads and
+abort-aware backoff.
+
+HTTP `onRequest`, `onResponse`, `onRetry` and `onError` hooks expose safe attempt metadata.
+`onResponse` means headers arrived, not successful schema validation. Parsing, invalid evidence,
+confidence, Zod failures and business handlers are not automatically retried. POST retries can
+duplicate work and billing; they do not guarantee idempotency. The generic AISDK bridge cannot
+control retries inside an externally supplied model. See [HTTP, retries and replay](docs/http-retry-replay.md).
+
+## Runs, preparation and replay
+
+Use `ask()` for a value, or `run()` when you also need evidence and diagnostics:
+
+```ts
+const first = await questions.about(ticket).run(triage);
+console.log(first.value, first.operationId, first.evidence?.usage);
+
+// A NEW potentially paid inference over the same captured inputs.
+const second = await first.replay({ timeout: "10 seconds" });
+
+// Capture first, then execute. The handle remains usable even after a failed run.
+const prepared = await questions.about(ticket).prepare(triage);
+const fromSnapshot = await prepared.run({ timeout: "20 seconds" });
+```
+
+Replay inherits the effective model, confidence, timeout and hooks unless overridden; it gets a
+fresh operation ID, deadline and signal scope. Pass `model: otherModel` to compare providers
+explicitly. The previous signal is never inherited, and live context is not reread.
+
+Replay is **new potentially paid inference**, not a cache, offline playback or durable workflow.
+Zod callbacks run again; business handlers are not captured. Preparation performs neither
+inference nor Zod parsing. See [replay contracts](docs/http-retry-replay.md).
+
+## Field diagnostics and evidence
+
+Inspect the existing run without another model call:
+
+```ts
+for (const field of first.diagnostics) {
+  console.log(field.path, field.role, field.answer, field.confidencePassed);
 }
+
+const compiled = Schema.compile(triage);
+console.log(compiled.fields); // Question IDs, input paths, annotations and choice mappings
+const diagnostics = compiled.diagnose(first.evidence, { confidence: 0.8 });
 ```
 
-Only the selected handler runs. A rejected confidence gate runs **no handler**. A handler's exception is not retried or converted into an automatic fallback. Handlers may receive `{ signal }` for cooperative cancellation.
+Paths refer to **schema input**, before output transforms: `["a.b"]` differs from `["a", "b"]`.
+Presence and value questions have distinct roles; unused optional descendants are inactive.
+`diagnose()` validates evidence without enforcing confidence, executing Zod callbacks or
+calling the provider. `compiled.parse(evidence)` applies confidence and parses the schema.
 
-For boolean evidence, confidence means `abs(2 * P(true) - 1)`, not `P(true)`. A confidence requirement of `0.8` requires `P(true) <= 0.1` or `P(true) >= 0.9`. A tie projects to `true` unless confidence rejects it. Choice and score confidence use the source recorded on their evidence: native provider, probability margin or custom policy. They are not guarantees of correctness or interchangeable thresholds.
+`SchemaValidationError` retains Zod issues/cause and diagnostics; schema-backed
+`UncertainDecision` adds the field path and question ID. See [field diagnostics](docs/semantic-dx.md).
 
-## Select your own objects
+For local decisions over distributions, the `Answer` and `Decision` namespaces offer ranking,
+probability grouping, expected values and expected-loss policies. The
+[evidence tutorial](examples/06-evidence-and-decision-costs.ts) compares policies using one evaluation.
 
-```ts
-const teams = [
-  { id: 1, name: "Billing", responsibility: "Charges and refunds" },
-  { id: 2, name: "Platform", responsibility: "Infrastructure and deployments" },
-];
-const team = await q.choose("Who should handle this?", teams, (item) => item.responsibility);
-// team is an original object from teams, not generated JSON or a reconstructed copy.
-const ranking = await q.rank("Who is best suited?", teams, (item) => item.responsibility);
-```
+**Confidence is not factual certainty.** Boolean confidence is `abs(2 * P(true) - 1)`.
+Choice/score evidence identifies its `confidenceSource`: provider, top-two margin or custom policy.
+Thresholds are not interchangeable across providers. Missing token counts remain unknown,
+not zero. Evidence/diagnostics may be sensitive; they are not included in default telemetry.
 
-Arrays and records with stable IDs are supported. At least two candidates are required. Only descriptions are sent; arbitrary application objects and private fields can remain local. Add an explicit “none / ask a human” candidate when appropriate.
+## Web Streams
 
-## Live context and collection batching
-
-```ts
-let findings: string[] = [];
-const investigation = questions.about(() => ({ findings }));
-findings = [...findings, "The rotated credential lacks deploy:write"];
-const settled = await investigation.is("Do the findings establish a likely cause?");
-
-const urgency = await questions
-  .each(["API down", "Please change the icon"])
-  .score("How urgent?", ["Low", "Medium", "High"]);
-```
-
-A context function is invoked on every operation and may be asynchronous; it receives `{ signal }`. Static JSON objects are snapshotted when an operation runs. Question definitions and collection descriptions are snapshotted at construction.
-
-`each(items).ask(batch)` evaluates the whole collection in one request and preserves input order. Empty collections return `[]` without a provider call. This is different from streaming one request per item. Batching does not bypass the provider's context window, costs, rate limits or criteria limits.
-
-## Streams: convenient by default
+Use streams for incremental work, not as a requirement for every operation:
 
 ```ts
 import { Streams } from "@nitoba/questions";
 
-const tickets = ["API unavailable", "Billing question", "Deployment failed"];
 const pipeline = Streams.from(tickets)
-  .map(
-    async (ticket, { signal, index }) => ({
-      index,
-      ticket,
-      urgent: await questions.about(ticket).is("Does this require urgent attention?", { signal }),
-    }),
-    { concurrency: 4 },
-  )
-  .filter((item) => item.urgent)
-  .take(10);
+  .map((item, { signal }) => questions.about(item).ask(triage, { signal }), { concurrency: 4 })
+  .filter((item) => item.urgent);
 
 await pipeline.forEach(
   (item) => {
     console.log(item);
   },
   {
-    signal: AbortSignal.timeout(30_000),
+    signal: AbortSignal.timeout(Duration.toMilliseconds("30 seconds")),
   },
 );
 ```
 
-`map` is sequential and ordered by default. `{ concurrency: 4 }` bounds **running tasks plus completed outputs waiting for the consumer**, not merely active requests. `{ ordered: false }` emits in completion order. A later failed task is not hidden behind an earlier slow task.
+`map` is sequential and ordered by default. Concurrent windows bound running tasks **plus
+completed outputs waiting for consumption**, per stage and by item count. `{ ordered: false }`
+emits in completion order. Failures and early termination signal in-flight work and cancel
+upstream; callbacks must cooperate with their signal.
 
-The facade supports `map`, asynchronous `filter`, type-guard `filter`, `tap`, `scan`, `mapAccum`, `batch`, `take`, `takeUntil` (inclusive), `takeWhile` (exclusive), `through`, `forEach`, `toArray`, `pipeTo` and `for await`. `scan` and `mapAccum` take seed factories so separate runs do not share state. See the complete [stateful feedback example](examples/14-stateful-streams.ts).
+The facade includes asynchronous/type-guard `filter`, `tap`, `batch`, `scan`, `mapAccum`, `take`,
+`takeUntil`, `takeWhile`, `toArray`, `forEach`, `pipeTo` and `for await`. Seed factories isolate
+state across runs. `toArray({ maxItems })` rejects excess output; `take(n)` truncates deliberately.
 
-Construction is lazy. Each terminal consumption is a **new execution**, with no replay or caching. Arrays are repeatable. Native streams and generators are single-use; a second consumption rejects. Use `Streams.defer(({ signal }) => acquireFreshSource(signal))` for fresh resources. Consumer cancellation, early termination and failures cancel upstream and signal in-flight callbacks.
+### Native escape hatch
 
-For finite materialization, `await pipeline.toArray({ maxItems: 100 })` rejects if the stream exceeds the limit. It does not silently truncate. Prefer `take(100)` for deliberate truncation.
-
-## Native APIs remain available
+As an **alternative** to the terminal `forEach` above, deliver NDJSON through a native response:
 
 ```ts
-const bytes = pipeline.through(
-  () =>
-    new TransformStream({
-      transform(value, controller) {
-        controller.enqueue(new TextEncoder().encode(JSON.stringify(value) + "\n"));
-      },
-    }),
-);
+const body = pipeline
+  .through(
+    () =>
+      new TransformStream<Triage, Uint8Array>({
+        transform(item, controller) {
+          controller.enqueue(new TextEncoder().encode(`${JSON.stringify(item)}\n`));
+        },
+      }),
+  )
+  .toReadable();
 
-const readable: ReadableStream<Uint8Array> = bytes.toReadable();
-const response = new Response(readable, {
+const response = new Response(body, {
   headers: { "content-type": "application/x-ndjson; charset=utf-8" },
 });
 ```
 
-Use `.toReadable()` for `getReader`, `pipeThrough`, `pipeTo`, `tee`, framework adapters or native queue strategies. Use `.through(() => new TransformStream(...))` to preserve lazy, fresh-per-run composition. Advanced native operations retain their platform semantics; an implicit unbounded `tee` is deliberately not introduced by this library.
+`.toReadable()` returns a native `ReadableStream`; `.through()` creates a fresh native transform
+for each run. **Every terminal consumption is new work:** using both snippets repeats inference.
+Arrays are repeatable; native streams and generators are single-use. Use `Streams.defer()`
+to acquire a fresh source per run. There is no implicit cache, replay buffer or `tee`.
 
-**Jev does not return token streams through this adapter.** Its documented `/v1/systemone` endpoint returns structured decisions as JSON. These streams process input items incrementally. See [stream lifetime and backpressure](docs/streams.md).
+These are streams of items and decisions, **not token streams from Jev**. Pure stream utilities
+are available at `@nitoba/questions/streams` without loading Zod, ofetch, ms or the Gateway SDK.
+See [stream lifetimes](docs/streams.md) and [native interoperability](examples/15-native-stream-interop.ts).
 
-## Retry and replay explicitly
+## Errors and boundaries
 
-All Questions-owned HTTP providers now use **ofetch 1.5.0**, including the transport supplied to the optional Gateway SDK. Retries remain disabled unless configured:
+| Error                   | Meaning                                                                                   |
+| ----------------------- | ----------------------------------------------------------------------------------------- |
+| `ValidationError`       | Invalid configuration, context, question definition or normalized evidence                |
+| `ProviderError`         | Transport, HTTP status or provider decoding failure                                       |
+| `TimeoutError`          | An operation or provider budget expired                                                   |
+| `UncertainDecision`     | An applicable confidence gate rejected a decision                                         |
+| `SchemaValidationError` | A well-formed decision failed the supplied Zod schema; original issues/cause are retained |
 
-```ts
-const model = TypeSafe.create({
-  apiKey,
-  timeoutMs: 15_000,
-  retry: { maxRetries: 2, statusCodes: [429, 503, 529], maxDelayMs: 3_000 },
-  hooks: { onRetry: ({ nextAttempt, delayMs }) => console.log(nextAttempt, delayMs) },
-});
-const client = Questions.create({ model });
-const first = await client.about(ticket).run(triage);
-console.log(first.value, first.evidence?.usage);
-const second = await first.replay({ signal: AbortSignal.timeout(15_000) });
+Caller cancellation preserves `signal.reason`; arbitrary callback failures preserve their
+thrown values. These are ordinary Promise rejections, not a typed error channel. Provider
+evidence is validated before schema callbacks and business dispatch. No automatic fallback,
+handler retry or telemetry is added by Questions. The optional SDK/service retains its own
+routing and metadata policies. Keep API keys server-side, sanitize logs, and enforce business
+authorization and idempotency in your application.
+
+## Tutorials and a complete application
+
+The [learning path](examples/README.md) contains **16 focused tutorial files and one multi-file
+application**, with English instructions, a feature coverage map and request counts.
+Start with [native questions](examples/02-native-question-schema.ts),
+[Zod](examples/07-zod-decision-schemas.ts), [derived clients](examples/09-derived-clients-and-observability.ts)
+or [bounded pipelines](examples/13-bounded-stream-pipelines.ts). Most live lessons support
+TypeSafe or Vercel. Tests never silently fall back to paid models.
+
+The [fulfillment desk](examples/16-fulfillment-desk/README.md) combines ordinary async services,
+Zod and streams with **real SQLite storage, a review HTTP API, transactional outbox and a
+deduplicating notification receiver**. Its walkthrough includes failure and recovery exercises.
+Operator approval is explicit; it is a runnable application slice, not a production-readiness
+or exactly-once-delivery claim.
+
+## Development and compatibility
+
+```sh
+bun run check          # Types, lint, format, tests, build, installed consumers and local doc links
+bun run test:examples  # Executable tutorials, SQLite/HTTP/CLI tests and local doc links
+bun run test:coverage
 ```
 
-`run` retains typed output and evidence; `replay` starts a **new potentially paid inference over the same snapshot**, not a cached result. Live context is not reread. Previous signals are never inherited. Zod callbacks run again, but downstream business actions do not. For explicit capture without inference and rerunning after errors, use `const prepared = await q.prepare(schema); await prepared.run()`.
+The toolchain is pinned in [package.json](package.json) and `bun.lock`: Bun, TypeScript 7,
+Oxlint, Oxfmt and tsdown. tsdown builds JavaScript; TypeScript emits declarations. See
+[AGENTS.md](AGENTS.md) for contribution contracts.
 
-`retry: 2` means up to two additional HTTP attempts for 429/529. Objects support explicit statuses, network-failure opt-in, fixed/custom delays, exponential backoff and jitter. The total timeout covers attempts, hooks, body reading and cancellable backoff. Retry-After is never shortened. HTTP hooks are sequential, read-only and omit credentials and prompts. Schema, decoding and business-handler failures are not automatically retried.
+CI runs the core library tests on Node 22/24 and Bun, typechecks example modules, checks the
+minimum Zod peer and installs packed consumers with/without the optional Gateway SDK.
+The fulfillment desk host/tests deliberately use Bun's SQLite and HTTP APIs. Runtime dependencies
+are `ofetch` and `ms`; Zod is a peer, and the Gateway peer is optional. The duration and pure
+stream subpaths are independent of Zod; the structural SDK bridge does not load ofetch or the
+Gateway SDK. Browser/edge portability is not a claim that every deployment target was tested.
 
-See [HTTP, retries, replay and the ofetch-inspired roadmap](docs/http-retry-replay.md) for policies, hooks, error behavior, provider comparisons and future DX opportunities. `examples/11-preparation-and-replay.ts` makes two explicit live evaluations.
+## Documentation
 
-## Evidence and expected loss
+| Guide                                                 | Details                                                            |
+| ----------------------------------------------------- | ------------------------------------------------------------------ |
+| [Schemas](docs/schemas.md)                            | Supported inputs, annotations, validation and compiled plans       |
+| [Semantic DX](docs/semantic-dx.md)                    | Immutable clients, hooks, durations, deadlines and diagnostics     |
+| [Providers](docs/providers.md)                        | Protocols, optional peers, custom models and confidence provenance |
+| [HTTP, retries and replay](docs/http-retry-replay.md) | Attempt policies, captured inputs, cancellation and privacy        |
+| [Streams](docs/streams.md)                            | Backpressure, resource lifetime and native APIs                    |
+| [Architecture](docs/architecture.md)                  | Internal boundaries and normalized provider contract               |
+| [Migration](docs/migration.md)                        | Effect differences and compatibility notes                         |
+| [Examples](examples/README.md)                        | Progressive tutorials, coverage map and the complete application   |
 
-```ts
-import { Answer, Decision } from "@nitoba/questions";
-
-const { answers, usage } = await q.evidence({
-  situation: Question.choice("Is this a duplicate charge?", {
-    duplicate: "The same purchase charged twice",
-    legitimate: "Two distinct purchases",
-  }),
-});
-console.log(Answer.rank(answers.situation), usage);
-const decision = Decision.minimizeLoss(answers.situation, {
-  refund: { duplicate: 0, legitimate: 100 },
-  reject: { duplicate: 50, legitimate: 0 },
-  humanReview: 2,
-});
-```
-
-`Answer` exposes `fromBoolean`, `rank`, `topK`, `margin`, `probabilityOf`, `coarsen`, `expectedValue` and `confidence`. Helpers are data-first functions, not an Effect-style dual-function framework. They never invent independence between questions or silently normalize probability mass.
-
-`Decision.risks` evaluates all alternatives; `minimizeLoss` chooses the lowest expected loss with stable tie-breaking; `match` requires handlers for every possible choice and runs only the selected one. Costs may be finite constants, complete tables or pure functions. Negative costs are rewards. Evidence is not authorization to charge money, change permissions or perform other sensitive actions.
-
-## Providers, validation and errors
-
-Implement `QuestionModel` to add a provider. Its `evaluate(request, { signal })` returns `Promise<unknown>` deliberately: the client validates every response before exposing typed values. Normalized answers, usage and definitions are documented in [architecture](docs/architecture.md).
-
-The Jev adapter uses native `fetch`, supports transport injection, converts `noul` to boolean evidence and snake-case token counters to camelCase, bounds JSON response bytes, and accepts an overall timeout including response reads and backoff. Structured option descriptions are encoded as JSON text. The model object does not expose the API key.
-
-There are **no retries by default**. The original configuration remains supported:
-
-```ts
-const model = Jev.create({
-  apiKey,
-  timeoutMs: 20_000,
-  maxResponseBytes: 1_048_576,
-  retry: { maxRetries: 2, initialDelayMs: 200, maxDelayMs: 5_000 },
-});
-```
-
-By default an enabled retry policy covers HTTP `429` and `529` only. Explicit `statusCodes` and `networkErrors` can broaden it; malformed responses are never retried. `Retry-After` is a minimum delay; if it exceeds the configured maximum wait, the adapter fails instead of retrying earlier. A retry is not a guarantee against duplicate provider billing.
-
-Malformed context, questions or normalized evidence raise `ValidationError`. Transport/status/JSON decoding failures raise `ProviderError`. An expired provider budget raises `TimeoutError`. A confidence rejection raises `UncertainDecision`. Schema-backed decisions that fail Zod validation raise `SchemaValidationError`, with original issue paths and a Zod error cause. Caller cancellation preserves `signal.reason`; arbitrary application/provider failures preserve their original values. These are ordinary thrown errors, **not a typed Promise error channel**. Original error causes can contain sensitive details from a custom transport; sanitize application logs.
-
-The decoder rejects missing/extra answer keys, undeclared choices, invalid probabilities, non-normalized distributions (base tolerance `1e-6`, plus explicitly reported rounding precision), inconsistent winners, scores inconsistent with the weighted rubric, changed legends and invalid usage counters. Validation checks structure and arithmetic, not whether a semantic judgment is factually correct.
-
-## Development
-
-`bun run check` runs TypeScript 7, Oxlint, Oxfmt check, Bun tests, tsdown build, declaration generation, an installed-tarball smoke test under Node and Bun, and publint. `bun run test:coverage` reports coverage. `tsdown` builds JavaScript; TypeScript 7 emits `.d.ts` files directly, avoiding reliance on the older compiler API for declaration bundling.
-
-The source uses Web APIs with ofetch for HTTP; the optional Gateway SDK owns its platform integration. CI targets Bun and Node 22/24 and separately checks the minimum Zod 4.0.0 peer; browser/edge compatibility is architectural, not a claim that every browser or deployment target has been tested. Keep provider API keys on your server. See [migration notes](docs/migration.md), [contributing guidance](AGENTS.md), and JSDoc in `src`.
-
-MIT. Questions adds no telemetry, background jobs, model-generated executable code, implicit caches or hidden retries. The optional official Gateway SDK/service has its own request metadata and logging policies.
+MIT — see [LICENSE](LICENSE).
