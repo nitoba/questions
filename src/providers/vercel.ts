@@ -10,7 +10,7 @@ import * as AISDK from "./ai-sdk.ts";
 /** Official Vercel AI Gateway evaluation, with explicit authentication and bounded HTTP. */
 export interface Options extends Pick<
   AISDK.Options,
-  "confidence" | "providerOptions" | "timeoutMs"
+  "confidence" | "providerOptions" | "timeout" | "timeoutMs"
 > {
   readonly apiKey: string;
   /** Evaluation model ID, not a chat model. Defaults to typesafe-ai/jev. */
@@ -124,5 +124,6 @@ export function create(options: Options): QuestionModel {
     ...(options.confidence === undefined ? {} : { confidence: options.confidence }),
     ...(options.providerOptions === undefined ? {} : { providerOptions: options.providerOptions }),
     ...(options.timeoutMs === undefined ? {} : { timeoutMs: options.timeoutMs }),
+    ...(options.timeout === undefined ? {} : { timeout: options.timeout }),
   });
 }

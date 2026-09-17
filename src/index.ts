@@ -63,3 +63,21 @@ export type {
   Hook,
   HooksList,
 } from "./http.ts";
+
+export * as Duration from "./duration.ts";
+export type { Input as DurationInput } from "./duration.ts";
+
+export type { ClientOptions, ExtendOptions } from "./questions.ts";
+export type {
+  Defaults,
+  OperationOptions,
+  SemanticHooks,
+  SemanticHook,
+  SemanticHooksList,
+  EvaluationEvent,
+  DecisionEvent,
+  OperationErrorEvent,
+  Operation,
+  Stage,
+} from "./lifecycle.ts";
+export type { SchemaPath, SchemaField, FieldDiagnostic } from "./diagnostics.ts";

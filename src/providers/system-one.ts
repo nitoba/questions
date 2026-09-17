@@ -1,3 +1,4 @@
+import type { Input as DurationInput } from "../duration.ts";
 import type { EvaluationRequest, QuestionModel } from "../model.ts";
 import type { RunOptions } from "../types.ts";
 import type { Retry, Hooks } from "../http.ts";
@@ -24,6 +25,8 @@ export interface Options {
   readonly headers?: HeadersInit;
   readonly fetch?: typeof globalThis.fetch;
   /** Entire evaluation budget, including body reads and backoff. No timeout by default. */
+  readonly timeout?: DurationInput;
+  /** @deprecated Use timeout, which also accepts a human-readable duration. */
   readonly timeoutMs?: number;
   readonly retry?: Retry;
   /** Read-only, credential-safe HTTP lifecycle hooks. */

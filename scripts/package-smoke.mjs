@@ -17,7 +17,7 @@ try {
     stdio: "pipe",
     encoding: "utf8",
   });
-  const overrides = packDependencies(root, directory, ["zod", "ofetch"]);
+  const overrides = packDependencies(root, directory, ["zod", "ofetch", "ms"]);
   writeFileSync(
     join(directory, "package.json"),
     JSON.stringify({ private: true, type: "module", overrides }),
@@ -30,14 +30,15 @@ try {
   const installed = JSON.parse(
     readFileSync(join(directory, "node_modules/@nitoba/questions/package.json"), "utf8"),
   );
-  assert.deepEqual(installed.dependencies, { ofetch: "1.5.0" });
+  assert.deepEqual(installed.dependencies, { ofetch: "1.5.0", ms: "2.1.3" });
   assert.deepEqual(installed.peerDependencies, { zod: "^4.0.0", "@ai-sdk/gateway": "^4.0.85" });
   assert.deepEqual(installed.peerDependenciesMeta, { "@ai-sdk/gateway": { optional: true } });
   assert.equal(existsSync(join(directory, "node_modules/@ai-sdk/gateway")), false);
   assert.equal(existsSync(join(directory, "node_modules/@ai-sdk/provider")), false);
   const source = `
 import assert from "node:assert/strict";
-import { Questions, Question, Answer, Decision, Schema, SchemaValidationError } from "@nitoba/questions";
+import { Questions, Question, Answer, Decision, Schema, SchemaValidationError, Duration } from "@nitoba/questions";
+import { parse as parseDuration } from "@nitoba/questions/duration";
 import * as z from "zod";
 import { registry } from "@nitoba/questions/schema";
 import { from } from "@nitoba/questions/streams";
@@ -74,6 +75,22 @@ const overHttp = Questions.create({ model:TypeSafe.create({apiKey:"test", retry:
 }}) });
 assert.equal(await overHttp.about("x").is("OK?"),true);
 assert.equal(httpAttempts,2);
+assert.equal(Duration.parse("200 milis"),200);
+assert.equal(parseDuration("1.5 seconds"),1500);
+const events=[];
+const parent=Questions.create({model,defaults:{timeout:"2 seconds",confidence:0.2},hooks:{onEvaluate:e=>{events.push(e)},onDecision:e=>{events.push(e)}}});
+const child=parent.extend({defaults:{confidence:0.7,timeout:"3 s"}});
+const detailed=await child.about("x").run(schema);
+assert.equal(detailed.diagnostics[0].path[0],"ok");
+assert.equal(detailed.diagnostics[0].confidencePassed,true);
+assert.equal(detailed.operationId,events[0].operationId);
+assert.equal(events.length,2);
+assert.equal(Schema.compile(schema).fields[0].path[0],"ok");
+assert.equal(Schema.compile(schema).diagnose(detailed.evidence)[0].active,true);
+assert.equal(parent.defaults.confidence,0.2);
+assert.equal(child.defaults.confidence,0.7);
+await detailed.replay({timeout:"1 second",hooks:false});
+assert.equal(events.length,2);
 console.log("Installed package runtime smoke passed");
 `;
   writeFileSync(join(directory, "consumer.mjs"), source);
@@ -82,7 +99,8 @@ console.log("Installed package runtime smoke passed");
   writeFileSync(
     join(directory, "consumer.ts"),
     `
-import { Questions, Question, type QuestionModel } from "@nitoba/questions";
+import { Questions, Question, Duration, type QuestionModel, type DurationInput, type SemanticHooks, type FieldDiagnostic } from "@nitoba/questions";
+import { toMilliseconds } from "@nitoba/questions/duration";
 import * as z from "zod";
 import { annotate, compile, type Output } from "@nitoba/questions/schema";
 import { from, type Stream } from "@nitoba/questions/streams";
@@ -117,6 +135,18 @@ const custom: QuestionModel = SystemOne.create({ baseURL: "http://localhost:9000
 // @ts-expect-error arbitrary URLs require a protocol model ID
 SystemOne.create({ baseURL: "http://localhost:9000" });
 void [direct, custom, AISDK];
+const duration:DurationInput="250 ms";
+const hooks:SemanticHooks={onDecision(event){const tokens:number|undefined=event.usage?.inputTokens;void tokens;}};
+const child=Questions.create({model,defaults:{timeout:"10 s"},hooks}).extend({defaults:{confidence:0.7}});
+const detailed=await child.about("x").run(schema,{timeout:"5 s"});
+const diagnostics:readonly FieldDiagnostic[]=detailed.diagnostics;
+const typedPath:readonly (string|number)[]=plan.fields[0]!.path;
+const inspected:readonly FieldDiagnostic[]=plan.diagnose(detailed.evidence);
+// @ts-expect-error unknown duration units must still fail in installed declarations
+child.extend({defaults:{timeout:"10 secods"}});
+// @ts-expect-error readonly derived client defaults
+child.defaults.confidence=0;
+void [duration,Duration,toMilliseconds,diagnostics,typedPath,inspected];
 void [route, invalid, stream, create, output, id, probability, plan];
 `,
   );
@@ -177,6 +207,18 @@ assert.equal(typeof AISDK.create,"function");
   );
   for (const runtime of ["node", "bun"])
     execFileSync(runtime, ["no-http.mjs"], { cwd: directory, stdio: "inherit" });
+  // Streams alone must not load any schema, HTTP, duration or SDK dependency.
+  rmSync(join(directory, "node_modules/ms"), { recursive: true, force: true });
+  writeFileSync(
+    join(directory, "streams-only.mjs"),
+    `
+import assert from "node:assert/strict";
+import { from } from "@nitoba/questions/streams";
+assert.deepEqual(await from([1]).map(x=>x+1).toArray(),[2]);
+`,
+  );
+  for (const runtime of ["node", "bun"])
+    execFileSync(runtime, ["streams-only.mjs"], { cwd: directory, stdio: "inherit" });
   console.log("Packed declarations, schema peer integration and independent subpaths passed");
 } finally {
   rmSync(directory, { recursive: true, force: true });

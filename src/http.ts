@@ -1,3 +1,4 @@
+import type { Input as DurationInput } from "./duration.ts";
 import type { ProviderError } from "./errors.ts";
 import type { Awaitable } from "./types.ts";
 
@@ -59,8 +60,12 @@ export interface RetryOptions {
   /** Explicitly retry network failures of unknown delivery status. Default: false. */
   readonly networkErrors?: boolean;
   /** Initial exponential delay, default 200ms. Ignored when delayMs is specified. */
+  readonly initialDelay?: DurationInput;
+  /** @deprecated Use initialDelay. */
   readonly initialDelayMs?: number;
   /** Maximum wait, default 30s. A larger Retry-After stops retries, never shortens it. */
+  readonly maxDelay?: DurationInput;
+  /** @deprecated Use maxDelay. */
   readonly maxDelayMs?: number;
   /** Full jitter for exponential backoff, default true. Not applied to an explicit delayMs. */
   readonly jitter?: boolean;
@@ -70,6 +75,8 @@ export interface RetryOptions {
    * @example
    * { maxRetries: 3, delayMs: ({ attempt }) => attempt * 500 }
    */
+  readonly delay?: DurationInput | ((context: Readonly<RetryContext>) => DurationInput);
+  /** @deprecated Use delay. Both fixed and callback results support readable durations there. */
   readonly delayMs?: number | ((context: Readonly<RetryContext>) => number);
 }
 /** false disables retry; a number is shorthand for { maxRetries }. Disabled by default. */

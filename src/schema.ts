@@ -1,3 +1,4 @@
+import type { SchemaField, FieldDiagnostic } from "./diagnostics.ts";
 import * as z from "zod/v4/core";
 import type { AnyQuestion } from "./question.ts";
 import type { RunOptions } from "./types.ts";
@@ -5,7 +6,7 @@ import { plan } from "./internal/schema-compiler.ts";
 import { decode } from "./internal/decode.ts";
 import { abortable } from "./internal/abort.ts";
 import { probability } from "./internal/validation.ts";
-import { ValidationError } from "./errors.ts";
+import { UncertainDecision, ValidationError } from "./errors.ts";
 
 export { annotate, registry } from "./schema-annotations.ts";
 export type { Annotation, Hints, Metadata } from "./schema-annotations.ts";
@@ -23,15 +24,30 @@ export class SchemaValidationError extends Error {
   readonly name = "SchemaValidationError";
   /** Original Zod issues with paths; `cause` retains the original Zod error. */
   readonly issues: readonly z.$ZodIssue[];
-  constructor(error: z.$ZodError) {
+  /** Input-field evidence, including gates; no generated explanations or extra inference. */
+  readonly diagnostics: readonly FieldDiagnostic[];
+  constructor(error: z.$ZodError, diagnostics: readonly FieldDiagnostic[] = []) {
     super("The decision result does not satisfy the supplied Zod schema", { cause: error });
     this.issues = Object.freeze([...error.issues]);
+    this.diagnostics = Object.freeze([...diagnostics]);
   }
 }
 
 /** A reusable compiled plan. Metadata is snapshotted; every parse runs the original schema. */
 export interface Compiled<S extends Type> {
   readonly schema: S;
+  /** Input paths, annotations, option mappings and question IDs captured at compilation. */
+  readonly fields: readonly SchemaField[];
+  /**
+   * Validate and join evidence to fields without inference, Zod callbacks or enforcing confidence.
+   * Optional absent branches are retained but marked inactive; paths refer to schema inputs.
+   * @example
+   * const plan = Schema.compile(schema);
+   * const evidence = await q.evidence(plan.questions);
+   * const fields = plan.diagnose(evidence, { confidence: 0.7 });
+   * console.log(fields.filter(field => field.active && !field.confidencePassed));
+   */
+  diagnose(evaluation?: unknown, options?: Options): readonly FieldDiagnostic[];
   /** Collision-free transport IDs. Use with `q.evidence()` for advanced evidence processing. */
   readonly questions: Readonly<Record<string, AnyQuestion>>;
   /**
@@ -75,6 +91,16 @@ export function compile<S extends Type>(schema: S): Compiled<S> {
   return Object.freeze({
     schema,
     questions: compiled.questions,
+    fields: compiled.fields,
+    diagnose(evaluation?: unknown, options: Options = {}) {
+      if (options.confidence !== undefined) probability(options.confidence, "confidence.minimum");
+      options.signal?.throwIfAborted();
+      const answers =
+        Object.keys(compiled.questions).length === 0
+          ? {}
+          : decode(evaluation, compiled.questions).answers;
+      return compiled.diagnose(answers, options.confidence ?? 0);
+    },
     async parse(evaluation?: unknown, options: Options = {}): Promise<Output<S>> {
       if (options.confidence !== undefined) probability(options.confidence, "confidence.minimum");
       options.signal?.throwIfAborted();
@@ -82,13 +108,32 @@ export function compile<S extends Type>(schema: S): Compiled<S> {
         Object.keys(compiled.questions).length === 0
           ? {}
           : decode(evaluation, compiled.questions).answers;
-      const input = compiled.read(answers, options.confidence ?? 0);
+      const diagnostics = compiled.diagnose(answers, options.confidence ?? 0);
+      let input: unknown;
+      try {
+        input = compiled.read(answers, options.confidence ?? 0);
+      } catch (error) {
+        if (!(error instanceof UncertainDecision)) throw error;
+        throw new UncertainDecision(
+          error.confidence,
+          error.minimum,
+          error.question,
+          error.evidence,
+          {
+            ...(error.path === undefined ? {} : { path: error.path }),
+            ...(error.questionId === undefined ? {} : { questionId: error.questionId }),
+            diagnostics,
+          },
+        );
+      }
       options.signal?.throwIfAborted();
       const parsing = z.safeParseAsync(schema, input);
       const result = options.signal ? await abortable(parsing, options.signal) : await parsing;
       options.signal?.throwIfAborted();
-      if (!result.success) throw new SchemaValidationError(result.error);
+      if (!result.success) throw new SchemaValidationError(result.error, diagnostics);
       return result.data;
     },
   });
 }
+
+export type { SchemaField, SchemaPath, FieldDiagnostic } from "./diagnostics.ts";

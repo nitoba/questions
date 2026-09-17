@@ -1,5 +1,7 @@
+import type { Input as DurationInput } from "../duration.ts";
+import { resolve as duration } from "./duration.ts";
 import { createFetch } from "ofetch";
-import type { Hooks, HooksList, Retry, RetryContext, RetryOptions } from "../http.ts";
+import type { Hooks, HooksList, Retry, RetryContext } from "../http.ts";
 import type { RunOptions } from "../types.ts";
 import { ProviderError, ValidationError } from "../errors.ts";
 import { abortable, cancellation, sleep } from "./abort.ts";
@@ -17,6 +19,7 @@ interface Config {
   readonly provider: string;
   readonly fetch?: typeof globalThis.fetch;
   readonly maxResponseBytes?: number;
+  readonly timeout?: DurationInput;
   readonly timeoutMs?: number;
   readonly retry?: Retry;
   readonly hooks?: Hooks;
@@ -31,9 +34,15 @@ function delay(value: number, path: string): number {
   return value;
 }
 
-function retryPolicy(
-  value: Retry | undefined,
-): Required<Omit<RetryOptions, "delayMs">> & Pick<RetryOptions, "delayMs"> {
+function retryPolicy(value: Retry | undefined): {
+  readonly maxRetries: number;
+  readonly statusCodes: readonly number[];
+  readonly networkErrors: boolean;
+  readonly jitter: boolean;
+  readonly initialDelayMs: number;
+  readonly maxDelayMs: number;
+  readonly delayMs?: number | ((context: Readonly<RetryContext>) => number);
+} {
   const options =
     value === undefined || value === false
       ? { maxRetries: 0 }
@@ -55,16 +64,25 @@ function retryPolicy(
   const jitter = options.jitter ?? true;
   if (typeof networkErrors !== "boolean" || typeof jitter !== "boolean")
     throw new ValidationError("networkErrors and jitter must be booleans", "retry");
-  const initialDelayMs = delay(
-    integer(options.initialDelayMs ?? 200, 0, "retry.initialDelayMs"),
-    "retry.initialDelayMs",
-  );
-  const maxDelayMs = delay(
-    integer(options.maxDelayMs ?? 30_000, 1, "retry.maxDelayMs"),
-    "retry.maxDelayMs",
-  );
-  if (options.delayMs !== undefined && typeof options.delayMs !== "function")
-    delay(options.delayMs, "retry.delayMs");
+  const initialDelayMs =
+    duration(options.initialDelay, options.initialDelayMs, "initialDelay") ?? 200;
+  const maxDelayMs = duration(options.maxDelay, options.maxDelayMs, "maxDelay", 1) ?? 30_000;
+  if (options.delay !== undefined && options.delayMs !== undefined)
+    throw new ValidationError("supply delay or delayMs, not both", "retry.delay");
+  const configured = options.delay;
+  const legacy = options.delayMs;
+  const convert = (value: DurationInput) => duration(value, undefined, "delay")!;
+  const delayMs =
+    typeof configured === "function"
+      ? (event: Readonly<RetryContext>) => {
+          const value = configured(event);
+          void Promise.resolve(value).catch(() => {});
+          return convert(value);
+        }
+      : configured !== undefined
+        ? convert(configured)
+        : legacy;
+  if (delayMs !== undefined && typeof delayMs !== "function") delay(delayMs, "retry.delayMs");
   return Object.freeze({
     maxRetries,
     statusCodes: Object.freeze([...new Set(statusCodes)]),
@@ -72,7 +90,7 @@ function retryPolicy(
     jitter,
     initialDelayMs,
     maxDelayMs,
-    ...(options.delayMs === undefined ? {} : { delayMs: options.delayMs }),
+    ...(delayMs === undefined ? {} : { delayMs }),
   });
 }
 
@@ -119,7 +137,7 @@ export function createHttp(config: Config) {
     onError: hookList(config.hooks?.onError, "onError"),
   };
   const limit = integer(config.maxResponseBytes ?? 1_048_576, 1, "maxResponseBytes");
-  const timeoutMs = config.timeoutMs;
+  const timeoutMs = duration(config.timeout, config.timeoutMs, "timeout", 1);
   cancellation(undefined, timeoutMs).dispose();
   const fetcher = config.fetch ?? globalThis.fetch;
   if (typeof fetcher !== "function") throw new ValidationError("fetch is unavailable", "fetch");

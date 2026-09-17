@@ -1,14 +1,23 @@
+import type { OperationOptions } from "./lifecycle.ts";
+import type { FieldDiagnostic } from "./diagnostics.ts";
+import {
+  checkModel,
+  callSettings,
+  operationContext,
+  withOperation,
+  type Settings,
+} from "./internal/operation.ts";
 import * as Schema from "./schema.ts";
 import * as Question from "./question.ts";
 import type { Evaluation, EvaluationRequest, QuestionModel } from "./model.ts";
-import type { RunOptions, StateSource } from "./types.ts";
+import type { StateSource } from "./types.ts";
 import { requireConfidence } from "./decision.ts";
 import { abortable, cancellation } from "./internal/abort.ts";
 import { decode } from "./internal/decode.ts";
-import { probability, state, text } from "./internal/validation.ts";
+import { probability, state } from "./internal/validation.ts";
 
 /** Options for a new inference over captured inputs. A previous AbortSignal is never reused. */
-export interface ReplayOptions extends RunOptions {
+export interface ReplayOptions extends OperationOptions {
   /** Override the provider explicitly, for example to compare the same inputs on another host. */
   readonly model?: QuestionModel;
   /** Override the call-level confidence gate; per-field schema minimums still apply. */
@@ -20,6 +29,10 @@ export interface ReplayOptions extends RunOptions {
  */
 export interface Execution<T, B extends Question.Batch = Question.Batch> {
   readonly value: T;
+  /** Correlates this run with its semantic lifecycle events. A replay gets a new ID. */
+  readonly operationId: string;
+  /** Field-level evidence for schema inputs, empty for plain batches. Does not call the model. */
+  readonly diagnostics: readonly FieldDiagnostic[];
   /** Undefined for constant-only schemas, which perform no inference. */
   readonly evidence: Evaluation<B> | undefined;
   /**
@@ -45,67 +58,73 @@ export interface Prepared<T, B extends Question.Batch = Question.Batch> {
   run(options?: ReplayOptions): Promise<Execution<T, B>>;
 }
 
-function checkModel(model: QuestionModel) {
-  text(model.name, "model.name");
-  if (typeof model.evaluate !== "function")
-    throw new TypeError("model.evaluate must be a function");
-}
-
 /** @internal One implementation behind the schema and question-batch overloads. */
 export async function prepare(
   model: QuestionModel,
   source: StateSource,
   input: Question.Batch | Schema.Type,
-  options: Schema.Options = {},
+  options: OperationOptions = {},
+  defaults?: Settings,
 ): Promise<Prepared<unknown>> {
-  checkModel(model);
-  const minimum = options.confidence;
+  model = checkModel(model);
+  const parent = operationContext(options);
+  const policy = parent?.policy ?? callSettings(defaults, options);
+  const minimum = policy.confidence;
   if (minimum !== undefined) probability(minimum, "confidence.minimum");
   options.signal?.throwIfAborted();
-  // Compile synchronously before awaiting the source, so metadata cannot drift across that await.
-  const compiled = Schema.isSchema(input) ? Schema.compile(input) : undefined;
-  const questions = compiled ? compiled.questions : Question.normalize(input as Question.Batch);
-  const scope = cancellation(options.signal);
+  const scope = cancellation(options.signal, parent ? undefined : policy.timeoutMs);
+  let compiled: ReturnType<typeof Schema.compile> | undefined;
+  let questions: Readonly<Record<string, Question.AnyQuestion>>;
   let request: EvaluationRequest | undefined;
+  const checkpoint = () => {
+    parent?.check();
+    scope.check();
+  };
   try {
-    scope.signal.throwIfAborted();
+    checkpoint();
+    // Compile before awaiting the source, so metadata cannot drift across that await.
+    compiled = Schema.isSchema(input) ? Schema.compile(input) : undefined;
+    questions = compiled ? compiled.questions : Question.normalize(input as Question.Batch);
+    checkpoint();
     if (Object.keys(questions).length > 0) {
+      if (parent) parent.stage = "context";
       const current =
         typeof source === "function"
           ? await abortable(source({ signal: scope.signal }), scope.signal)
           : source;
-      scope.signal.throwIfAborted();
+      checkpoint();
       request = Object.freeze({ state: state(current), questions });
+      checkpoint();
     }
   } finally {
     scope.dispose();
   }
 
-  async function execute(
+  function execute(
     selected: QuestionModel,
-    confidence: number | undefined,
-    signal?: AbortSignal,
+    inherited: Settings,
+    run: ReplayOptions,
+    name: "run" | "replay",
   ): Promise<Execution<unknown>> {
-    checkModel(selected);
-    if (confidence !== undefined) probability(confidence, "confidence.minimum");
-    const runScope = cancellation(signal);
-    try {
-      runScope.signal.throwIfAborted();
-      const evidence =
-        request === undefined
-          ? undefined
-          : decode(
-              await abortable(
-                selected.evaluate(request, { signal: runScope.signal }),
-                runScope.signal,
-              ),
-              questions,
-            );
-      runScope.signal.throwIfAborted();
-      const parseOptions = {
-        signal: runScope.signal,
-        ...(confidence === undefined ? {} : { confidence }),
-      };
+    selected = checkModel(selected);
+    return withOperation(selected, inherited, name, run, async (_options, context) => {
+      const confidence = context.policy.confidence;
+      const signal = context.signal;
+      context.questionCount = Object.keys(questions).length;
+      context.check();
+      let evidence: Evaluation<Question.Batch> | undefined;
+      if (request !== undefined) {
+        context.stage = "inference";
+        context.evaluationCount++;
+        const response = await abortable(selected.evaluate(request, { signal }), signal);
+        context.check();
+        context.stage = "validation";
+        evidence = decode(response, questions);
+        context.evidence = evidence;
+      }
+      const parseOptions = { signal, ...(confidence === undefined ? {} : { confidence }) };
+      context.stage = "validation";
+      const diagnostics = compiled ? compiled.diagnose(evidence, parseOptions) : Object.freeze([]);
       const value = compiled
         ? await compiled.parse(evidence, parseOptions)
         : Object.freeze(
@@ -124,22 +143,25 @@ export async function prepare(
               }),
             ),
           );
-      runScope.signal.throwIfAborted();
+      context.check();
+      context.stage = "decision";
+      const effective = context.policy;
       return Object.freeze({
         value,
         evidence,
+        diagnostics,
+        operationId: context.id,
         replay(next: ReplayOptions = {}) {
-          return execute(next.model ?? selected, next.confidence ?? confidence, next.signal);
+          return execute(next.model ?? selected, effective, next, "replay");
         },
       });
-    } finally {
-      runScope.dispose();
-    }
+    });
   }
+
   return Object.freeze({
     request,
     run(run: ReplayOptions = {}) {
-      return execute(run.model ?? model, run.confidence ?? minimum, run.signal);
+      return execute(run.model ?? model, policy, run, "run");
     },
   });
 }

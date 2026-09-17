@@ -10,7 +10,7 @@ const root = fileURLToPath(new URL("..", import.meta.url));
 const directory = mkdtempSync(join(tmpdir(), "questions-sdk-consumer-"));
 const tarball = join(directory, "questions.tgz");
 try {
-  const overrides = packDependencies(root, directory, ["zod", "ofetch", "@ai-sdk/gateway"]);
+  const overrides = packDependencies(root, directory, ["zod", "ofetch", "ms", "@ai-sdk/gateway"]);
   execFileSync("bun", ["pm", "pack", "--filename", tarball], { cwd: root, stdio: "pipe" });
   writeFileSync(
     join(directory, "package.json"),

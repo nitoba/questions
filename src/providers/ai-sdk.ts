@@ -1,3 +1,5 @@
+import type { Input as DurationInput } from "../duration.ts";
+import { resolve as duration } from "../internal/duration.ts";
 import type { ChoiceAnswer, ScoreAnswer } from "../answer.ts";
 import { margin } from "../answer.ts";
 import type { AnyQuestion } from "../question.ts";
@@ -58,6 +60,8 @@ export interface Options {
   readonly providerOptions?: Record<string, JsonObject>;
   readonly headers?: HeadersInit;
   /** Evaluation budget including the SDK call. Cannot forcibly stop a non-cooperative SDK model. */
+  readonly timeout?: DurationInput;
+  /** @deprecated Use timeout. */
   readonly timeoutMs?: number;
 }
 
@@ -105,7 +109,7 @@ export function create(options: Options): QuestionModel {
   const namespaces = record(options.providerOptions ?? {}, "providerOptions");
   for (const [key, value] of Object.entries(namespaces)) record(value, `providerOptions.${key}`);
   const providerOptions = json(namespaces, "providerOptions") as Record<string, JsonObject>;
-  const timeoutMs = options.timeoutMs;
+  const timeoutMs = duration(options.timeout, options.timeoutMs, "timeout", 1);
   cancellation(undefined, timeoutMs).dispose();
 
   return Object.freeze({

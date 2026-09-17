@@ -1,6 +1,6 @@
 {
   "name": "@nitoba/questions",
-  "version": "0.1.0-alpha.4",
+  "version": "0.1.0-alpha.5",
   "description": "Typed semantic decisions and native Web Streams, without Effect.",
   "license": "MIT",
   "author": "Bruno Alves",
@@ -51,6 +51,10 @@
     "./providers/vercel": {
       "types": "./dist/providers/vercel.d.ts",
       "import": "./dist/providers/vercel.js"
+    },
+    "./duration": {
+      "types": "./dist/duration.d.ts",
+      "import": "./dist/duration.js"
     }
   },
   "scripts": {
@@ -66,12 +70,14 @@
     "test:package:native": "node scripts/package-smoke.mjs"
   },
   "dependencies": {
+    "ms": "2.1.3",
     "ofetch": "1.5.0"
   },
   "devDependencies": {
     "@ai-sdk/gateway": "4.0.85",
     "@ai-sdk/provider": "4.0.17",
     "@types/bun": "1.4.2",
+    "@types/ms": "2.1.0",
     "oxfmt": "0.66.0",
     "oxlint": "1.83.0",
     "publint": "0.3.24",

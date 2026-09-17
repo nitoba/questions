@@ -9,6 +9,7 @@ export function cancellation(parent?: AbortSignal, timeoutMs?: number) {
       throw new RangeError("timeoutMs exceeds the platform timer limit");
   }
   const controller = new AbortController();
+  const deadline = timeoutMs === undefined ? undefined : performance.now() + timeoutMs;
   const relay = () => controller.abort(parent?.reason);
   if (parent?.aborted) relay();
   else parent?.addEventListener("abort", relay, { once: true });
@@ -21,6 +22,12 @@ export function cancellation(parent?: AbortSignal, timeoutMs?: number) {
   return {
     controller,
     signal: controller.signal,
+    /** Check again after synchronous user work, before a delayed timer can run. */
+    check() {
+      if (!controller.signal.aborted && deadline !== undefined && performance.now() >= deadline)
+        controller.abort(new TimeoutError(timeoutMs!));
+      controller.signal.throwIfAborted();
+    },
     dispose() {
       if (timer !== undefined) clearTimeout(timer);
       parent?.removeEventListener("abort", relay);

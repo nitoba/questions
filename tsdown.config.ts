@@ -5,6 +5,7 @@ export default defineConfig({
     "src/index.ts",
     "src/streams.ts",
     "src/schema.ts",
+    "src/duration.ts",
     "src/providers/jev.ts",
     "src/providers/typesafe.ts",
     "src/providers/system-one.ts",

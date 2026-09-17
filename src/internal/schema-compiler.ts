@@ -1,17 +1,29 @@
 import * as z from "zod/v4/core";
 import * as Question from "../question.ts";
 import type { AnyAnswer } from "../answer.ts";
-import { requireConfidence } from "../decision.ts";
-import { ValidationError } from "../errors.ts";
+import { confidence as observedConfidence } from "../answer.ts";
+import type { SchemaField, SchemaPath, FieldDiagnostic } from "../diagnostics.ts";
+import { UncertainDecision, ValidationError } from "../errors.ts";
 import { metadata, type Resolved } from "../schema-annotations.ts";
 import { record } from "./validation.ts";
 
 /** @internal Project only selected branches, applying confidence before any Zod callback. */
-export type Read = (answers: Readonly<Record<string, AnyAnswer>>, confidence: number) => unknown;
+type Visit = (id: string, minimum: number) => void;
+export type Read = (
+  answers: Readonly<Record<string, AnyAnswer>>,
+  confidence: number,
+  visit?: Visit,
+  enforce?: boolean,
+) => unknown;
 /** @internal Immutable finite-question plan. */
 export interface Plan {
   readonly questions: Readonly<Record<string, Question.AnyQuestion>>;
   readonly read: Read;
+  readonly fields: readonly SchemaField[];
+  readonly diagnose: (
+    answers: Readonly<Record<string, AnyAnswer>>,
+    minimum: number,
+  ) => readonly FieldDiagnostic[];
 }
 const OMIT = Symbol("absent schema field");
 type Primitive = string | number | boolean | null | undefined;
@@ -54,18 +66,47 @@ function primitive(value: unknown, path: string): Primitive {
 export function plan(schema: z.$ZodType): Plan {
   const entries: [string, Question.AnyQuestion][] = [];
   const active = new Set<z.$ZodType>();
+  const fields: SchemaField[] = [];
 
   function emit(
     question: Question.AnyQuestion,
     meta: Resolved,
     project: (answer: AnyAnswer) => unknown,
+    path: SchemaPath,
+    role: SchemaField["role"] = "value",
+    variants?: readonly Option[],
   ): Read {
     const key = `q${entries.length}`;
     entries.push([key, question]);
-    return (answers, minimum) => {
+    const field: SchemaField = Object.freeze({
+      questionId: key,
+      path: Object.freeze([...path]),
+      role,
+      question,
+      annotations: Object.freeze({ ...meta }),
+      ...(variants === undefined
+        ? {}
+        : {
+            choices: Object.freeze(
+              Object.fromEntries(variants.map((variant, i) => [`o${i}`, variant.value])),
+            ),
+          }),
+    });
+    fields.push(field);
+    return (answers, minimum, visit, enforce = true) => {
       const answer = answers[key]!;
-      const threshold = Math.max(meta.confidence ?? 0, minimum);
-      if (threshold > 0) requireConfidence(answer, threshold, question.instructions);
+      const variantMinimum =
+        variants && answer.type === "choice"
+          ? (variants[Number(answer.choice.slice(1))]?.confidence ?? 0)
+          : 0;
+      const threshold = Math.max(meta.confidence ?? 0, minimum, variantMinimum);
+      visit?.(key, threshold);
+      const observed = observedConfidence(answer);
+      if (enforce && observed < threshold)
+        throw new UncertainDecision(observed, threshold, question.instructions, answer, {
+          path: field.path,
+          questionId: key,
+        });
       return project(answer);
     };
   }
@@ -154,7 +195,13 @@ export function plan(schema: z.$ZodType): Plan {
     }
   }
 
-  function choice(options: Option[], instructions: string, meta: Resolved, path: string): Read {
+  function choice(
+    options: Option[],
+    instructions: string,
+    meta: Resolved,
+    path: string,
+    segments: SchemaPath,
+  ): Read {
     if (meta.kind !== undefined && meta.kind !== "choice")
       fail("this schema requires choice annotations", path);
     if (meta.criteria !== undefined || meta.levels !== undefined)
@@ -202,13 +249,18 @@ export function plan(schema: z.$ZodType): Plan {
         ];
       }),
     );
-    return emit(Question.choice(instructions, criteria), meta, (answer) => {
-      if (answer.type !== "choice") return fail("expected choice evidence", path);
-      const selected = distinct[Number(answer.choice.slice(1))]!;
-      if ((selected.confidence ?? 0) > 0)
-        requireConfidence(answer, selected.confidence!, instructions);
-      return selected.value;
-    });
+    return emit(
+      Question.choice(instructions, criteria),
+      meta,
+      (answer) => {
+        if (answer.type !== "choice") return fail("expected choice evidence", path);
+        const selected = distinct[Number(answer.choice.slice(1))]!;
+        return selected.value;
+      },
+      segments,
+      "value",
+      distinct,
+    );
   }
 
   function walk(
@@ -216,6 +268,7 @@ export function plan(schema: z.$ZodType): Plan {
     path: string,
     context: readonly string[],
     inherited: Resolved = {},
+    segments: SchemaPath = [],
   ): Read {
     if (active.has(node))
       return fail("recursive schemas cannot be represented by a finite question batch", path);
@@ -234,13 +287,13 @@ export function plan(schema: z.$ZodType): Plan {
       ].join("\n");
       switch (def.type) {
         case "pipe":
-          return walk(def.in, path, context, meta);
+          return walk(def.in, path, context, meta, segments);
         case "readonly":
         case "catch":
         case "nonoptional":
-          return walk(def.innerType, path, context, meta);
+          return walk(def.innerType, path, context, meta, segments);
         case "lazy":
-          return walk(def.getter(), path, context, meta);
+          return walk(def.getter(), path, context, meta, segments);
         case "optional":
         case "nullable":
         case "default":
@@ -252,10 +305,14 @@ export function plan(schema: z.$ZodType): Plan {
             ),
             { confidence: meta.confidence ?? 0 },
             (answer) => answer.type === "boolean" && answer.probability >= 0.5,
+            segments,
+            "presence",
           );
-          const inner = walk(def.innerType, path, context, meta);
-          return (answers, minimum) =>
-            presence(answers, minimum) ? inner(answers, minimum) : absent;
+          const inner = walk(def.innerType, path, context, meta, segments);
+          return (answers, minimum, visit, enforce) =>
+            presence(answers, minimum, visit, enforce)
+              ? inner(answers, minimum, visit, enforce)
+              : absent;
         }
         case "object": {
           if (Object.hasOwn(def.shape, "__proto__"))
@@ -286,13 +343,14 @@ export function plan(schema: z.$ZodType): Plan {
                     ...(meta.instructions ? [meta.instructions] : []),
                   ],
                   { confidence: meta.confidence ?? 0 },
+                  [...segments, key],
                 ),
               ] as const,
           );
-          return (answers, minimum) =>
+          return (answers, minimum, visit, enforce) =>
             Object.fromEntries(
               children.flatMap(([key, read]) => {
-                const value = read(answers, minimum);
+                const value = read(answers, minimum, visit, enforce);
                 return value === OMIT ? [] : [[key, value]];
               }),
             );
@@ -312,11 +370,12 @@ export function plan(schema: z.$ZodType): Plan {
               `${path}[${index}]`,
               [...context, ...guidance(meta), ...(meta.instructions ? [meta.instructions] : [])],
               { confidence: meta.confidence ?? 0 },
+              [...segments, index],
             ),
           );
-          return (answers, minimum) =>
+          return (answers, minimum, visit, enforce) =>
             children.map((read) => {
-              const value = read(answers, minimum);
+              const value = read(answers, minimum, visit, enforce);
               return value === OMIT ? undefined : value;
             });
         }
@@ -329,6 +388,7 @@ export function plan(schema: z.$ZodType): Plan {
             Question.boolean(instructions, meta.criteria),
             meta,
             (answer) => answer.type === "boolean" && answer.probability >= 0.5,
+            segments,
           );
         }
         case "number": {
@@ -339,18 +399,28 @@ export function plan(schema: z.$ZodType): Plan {
             );
           if (meta.kind === "probability") {
             if (meta.levels !== undefined) fail("probabilities do not have score levels", path);
-            return emit(Question.boolean(instructions, meta.criteria), meta, (answer) => {
-              if (answer.type !== "boolean") return fail("expected boolean evidence", path);
-              return answer.probability;
-            });
+            return emit(
+              Question.boolean(instructions, meta.criteria),
+              meta,
+              (answer) => {
+                if (answer.type !== "boolean") return fail("expected boolean evidence", path);
+                return answer.probability;
+              },
+              segments,
+            );
           }
           if (meta.kind === "score") {
             if (meta.criteria !== undefined) fail("scores use levels, not boolean criteria", path);
             const question = Question.score(instructions, meta.levels!);
-            return emit(question, meta, (answer) => {
-              if (answer.type !== "score") return fail("expected score evidence", path);
-              return answer.score;
-            });
+            return emit(
+              question,
+              meta,
+              (answer) => {
+                if (answer.type !== "score") return fail("expected score evidence", path);
+                return answer.score;
+              },
+              segments,
+            );
           }
           return fail(
             'number schemas require { kind: "probability" } or { kind: "score", levels: [...] } annotations',
@@ -368,6 +438,7 @@ export function plan(schema: z.$ZodType): Plan {
             instructions,
             meta,
             path,
+            segments,
           );
         }
         case "literal":
@@ -375,7 +446,7 @@ export function plan(schema: z.$ZodType): Plan {
         case "union":
         case "null":
         case "undefined":
-          return choice(finiteOptions(node, path), instructions, meta, path);
+          return choice(finiteOptions(node, path), instructions, meta, path, segments);
         default:
           return fail(`Zod ${def.type} is not supported by the finite decision protocol`, path);
       }
@@ -386,8 +457,29 @@ export function plan(schema: z.$ZodType): Plan {
   const read = walk(schema, "$", []);
   return {
     questions: Object.freeze(Object.fromEntries(entries)),
-    read: (answers, minimum) => {
-      const value = read(answers, minimum);
+    fields: Object.freeze(fields),
+    diagnose(answers, minimum) {
+      const reached = new Map<string, number>();
+      read(answers, minimum, (id, threshold) => reached.set(id, threshold), false);
+      return Object.freeze(
+        fields.map((field) => {
+          const answer = answers[field.questionId]!;
+          const confidence = observedConfidence(answer);
+          const threshold = reached.get(field.questionId);
+          return Object.freeze({
+            ...field,
+            answer,
+            confidence,
+            active: threshold !== undefined,
+            ...(threshold === undefined
+              ? {}
+              : { minimum: threshold, confidencePassed: confidence >= threshold }),
+          });
+        }),
+      );
+    },
+    read: (answers, minimum, visit, enforce) => {
+      const value = read(answers, minimum, visit, enforce);
       return value === OMIT ? undefined : value;
     },
   };

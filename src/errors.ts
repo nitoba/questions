@@ -1,3 +1,4 @@
+import type { SchemaPath, FieldDiagnostic } from "./diagnostics.ts";
 /** A malformed question, context, option, or provider response. */
 export class ValidationError extends Error {
   readonly name = "ValidationError";
@@ -44,11 +45,28 @@ export class UncertainDecision extends Error {
   readonly minimum: number;
   readonly question: string | undefined;
   readonly evidence: unknown;
-  constructor(confidence: number, minimum: number, question?: string, evidence?: unknown) {
+  /** Available for schema-backed decisions, using the input field path. */
+  readonly path: SchemaPath | undefined;
+  readonly questionId: string | undefined;
+  readonly diagnostics: readonly FieldDiagnostic[] | undefined;
+  constructor(
+    confidence: number,
+    minimum: number,
+    question?: string,
+    evidence?: unknown,
+    details: {
+      readonly path?: SchemaPath;
+      readonly questionId?: string;
+      readonly diagnostics?: readonly FieldDiagnostic[];
+    } = {},
+  ) {
     super(`Confidence ${confidence} is below the required ${minimum}`);
     this.confidence = confidence;
     this.minimum = minimum;
     this.question = question;
     this.evidence = evidence;
+    this.path = details.path;
+    this.questionId = details.questionId;
+    this.diagnostics = details.diagnostics;
   }
 }

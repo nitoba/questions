@@ -1,3 +1,12 @@
+import type { Defaults, OperationOptions, SemanticHooks, Operation } from "./lifecycle.ts";
+import {
+  settings,
+  withOperation,
+  checkModel,
+  operationContext,
+  type Settings,
+  type OperationContext,
+} from "./internal/operation.ts";
 import * as Schema from "./schema.ts";
 import * as Question from "./question.ts";
 import { prepare as prepareExecution } from "./execution.ts";
@@ -5,37 +14,70 @@ import type { Execution, Prepared } from "./execution.ts";
 import * as Answer from "./answer.ts";
 import { requireConfidence } from "./decision.ts";
 import type { Evaluation, QuestionModel } from "./model.ts";
-import type {
-  Awaitable,
-  CallContext,
-  Description,
-  RunOptions,
-  State,
-  StateSource,
-} from "./types.ts";
+import type { Awaitable, CallContext, Description, State, StateSource } from "./types.ts";
 import { cancellation, abortable } from "./internal/abort.ts";
 import { decode } from "./internal/decode.ts";
-import { probability, state, text } from "./internal/validation.ts";
+import { probability, state } from "./internal/validation.ts";
 
 /** Optional confidence gate and operation-level cancellation. No implicit retry or fallback. */
-export interface Options extends RunOptions {
-  readonly confidence?: number;
+export interface Options extends OperationOptions {}
+/** Client-level policies are immutable; derive a new client with extend(). */
+export interface ClientOptions {
+  readonly model: QuestionModel;
+  readonly defaults?: Defaults;
+  readonly hooks?: SemanticHooks | false;
 }
+/** Explicit overrides for an independently configured client. */
+export type ExtendOptions = Omit<ClientOptions, "model"> & { readonly model?: QuestionModel };
+const scopeOperation = Symbol("questions.scope");
 /** A collection of original application values identified by position or stable record keys. */
 export type Candidates = readonly unknown[] | Readonly<Record<string, unknown>>;
 /** The element type of an array or keyed collection. */
 export type Candidate<C extends Candidates> = C extends readonly (infer T)[] ? T : C[keyof C];
 /** Predicate that can be passed directly to asynchronous stream operators. */
-export type Predicate = (context: State, options?: RunOptions) => Promise<boolean>;
+export type Predicate = (context: State, options?: OperationOptions) => Promise<boolean>;
 
 /** An immutable client with explicit model injection and no global runtime. */
 export class QuestionsClient {
   readonly #model: QuestionModel;
-  constructor(model: QuestionModel) {
-    text(model.name, "model.name");
-    if (typeof model.evaluate !== "function")
-      throw new TypeError("model.evaluate must be a function");
-    this.#model = model;
+  readonly #settings: Settings;
+  /** Effective, normalized defaults. Numeric timeout values are milliseconds. */
+  readonly defaults: Readonly<Defaults>;
+  constructor(model: QuestionModel, options: Omit<ClientOptions, "model"> = {}) {
+    this.#model = checkModel(model);
+    this.#settings = settings(undefined, options.defaults, options.hooks);
+    this.defaults = Object.freeze({
+      ...(this.#settings.confidence === undefined ? {} : { confidence: this.#settings.confidence }),
+      ...(this.#settings.timeoutMs === undefined ? {} : { timeout: this.#settings.timeoutMs }),
+    });
+    Object.freeze(this);
+  }
+
+  /**
+   * Derive an independent immutable client. Overrides win; undefined inherits.
+   * Parent hooks run before child hooks. hooks:false (or a false event) clears inheritance.
+   * timeout:false removes an inherited operation timeout; schema confidence minima remain intact.
+   * @example
+   * const support = client.extend({ defaults: { confidence: 0.7, timeout: "30 s" } });
+   */
+  extend(options: ExtendOptions = {}): QuestionsClient {
+    const policy = settings(this.#settings, options.defaults, options.hooks);
+    return new QuestionsClient(options.model ?? this.#model, {
+      defaults: {
+        timeout: policy.timeoutMs ?? false,
+        ...(policy.confidence === undefined ? {} : { confidence: policy.confidence }),
+      },
+      hooks: policy.hooks,
+    });
+  }
+
+  /** @internal A collection uses the same outer boundary without nested operation events. */
+  [scopeOperation]<T>(
+    name: Operation,
+    options: OperationOptions,
+    work: (options: OperationOptions, context: OperationContext) => Promise<T>,
+  ): Promise<T> {
+    return withOperation(this.#model, this.#settings, name, options, work);
   }
 
   /**
@@ -46,7 +88,7 @@ export class QuestionsClient {
    * const settled = () => q.is("Is the cause established?");
    */
   about(source: StateSource): BoundQuestions {
-    return new BoundQuestions(this.#model, source);
+    return new BoundQuestions(this.#model, source, this.#settings);
   }
 
   /** Create an asynchronous predicate; a consumer signal overrides the bound signal. */
@@ -74,9 +116,12 @@ export class QuestionsClient {
 export class BoundQuestions {
   readonly #model: QuestionModel;
   readonly #source: StateSource;
-  constructor(model: QuestionModel, source: StateSource) {
-    this.#model = model;
+  readonly #settings: Settings | undefined;
+  constructor(model: QuestionModel, source: StateSource, defaults?: Settings) {
+    this.#model = checkModel(model);
     this.#source = source;
+    this.#settings = defaults;
+    Object.freeze(this);
   }
 
   /**
@@ -85,26 +130,49 @@ export class BoundQuestions {
    */
   async evidence<const B extends Question.Batch>(
     batch: B,
-    options: RunOptions = {},
+    options: OperationOptions = {},
   ): Promise<Evaluation<B>> {
-    const questions = Question.normalize(batch);
-    const scope = cancellation(options.signal);
-    try {
-      scope.signal.throwIfAborted();
-      const current =
-        typeof this.#source === "function"
-          ? await abortable(this.#source({ signal: scope.signal }), scope.signal)
-          : this.#source;
-      scope.signal.throwIfAborted();
-      const response = await abortable(
-        this.#model.evaluate({ state: state(current), questions }, { signal: scope.signal }),
-        scope.signal,
-      );
-      scope.signal.throwIfAborted();
-      return decode<B>(response, questions);
-    } finally {
-      scope.dispose();
-    }
+    return withOperation(
+      this.#model,
+      this.#settings,
+      "evidence",
+      options ?? {},
+      async (options, _context) => {
+        const questions = Question.normalize(batch);
+        const scope = cancellation(options.signal);
+        const operation = operationContext(options);
+        if (operation) {
+          operation.stage = "context";
+          operation.questionCount = Object.keys(questions).length;
+        }
+        try {
+          operation?.check();
+          scope.check();
+          const current =
+            typeof this.#source === "function"
+              ? await abortable(this.#source({ signal: scope.signal }), scope.signal)
+              : this.#source;
+          operation?.check();
+          scope.check();
+          if (operation) {
+            operation.stage = "inference";
+            operation.evaluationCount++;
+          }
+          const response = await abortable(
+            this.#model.evaluate({ state: state(current), questions }, { signal: scope.signal }),
+            scope.signal,
+          );
+          operation?.check();
+          scope.check();
+          if (operation) operation.stage = "validation";
+          const result = decode<B>(response, questions);
+          if (operation) operation.evidence = result;
+          return result;
+        } finally {
+          scope.dispose();
+        }
+      },
+    );
   }
 
   /**
@@ -124,8 +192,17 @@ export class BoundQuestions {
     options?: Options,
   ): Promise<Question.Values<B>>;
   async ask(batch: Question.Batch | Schema.Type, options: Options = {}): Promise<unknown> {
-    const run = { ...options };
-    return (await (await prepareExecution(this.#model, this.#source, batch, run)).run(run)).value;
+    return withOperation(
+      this.#model,
+      this.#settings,
+      "ask",
+      options ?? {},
+      async (options, _context) => {
+        const run = { ...options };
+        return (await (await prepareExecution(this.#model, this.#source, batch, run)).run(run))
+          .value;
+      },
+    );
   }
 
   /**
@@ -150,8 +227,16 @@ export class BoundQuestions {
     batch: Question.Batch | Schema.Type,
     options: Options = {},
   ): Promise<Execution<unknown>> {
-    const run = { ...options };
-    return (await prepareExecution(this.#model, this.#source, batch, run)).run(run);
+    return withOperation(
+      this.#model,
+      this.#settings,
+      "run",
+      options ?? {},
+      async (options, _context) => {
+        const run = { ...options };
+        return (await prepareExecution(this.#model, this.#source, batch, run)).run(run);
+      },
+    );
   }
 
   /**
@@ -176,17 +261,33 @@ export class BoundQuestions {
     batch: Question.Batch | Schema.Type,
     options: Options = {},
   ): Promise<Prepared<unknown>> {
-    return prepareExecution(this.#model, this.#source, batch, options);
+    return prepareExecution(this.#model, this.#source, batch, options, this.#settings);
   }
 
   /** Return the most likely boolean. An exact tie favors true; gate confidence to reject ties. */
   async is(question: string, options?: Options): Promise<boolean> {
-    return (await this.ask({ answer: question }, options)).answer;
+    return withOperation(
+      this.#model,
+      this.#settings,
+      "is",
+      options ?? {},
+      async (options, _context) => {
+        return (await this.ask({ answer: question }, options)).answer;
+      },
+    );
   }
 
   /** Return P(true), leaving probability thresholds to the application. */
-  async probability(question: string, options?: RunOptions): Promise<number> {
-    return (await this.evidence({ answer: question }, options)).answers.answer.probability;
+  async probability(question: string, options?: OperationOptions): Promise<number> {
+    return withOperation(
+      this.#model,
+      this.#settings,
+      "probability",
+      options ?? {},
+      async (options, _context) => {
+        return (await this.evidence({ answer: question }, options)).answers.answer.probability;
+      },
+    );
   }
 
   /** Return a zero-based weighted rubric score, potentially between levels. */
@@ -195,14 +296,22 @@ export class BoundQuestions {
     levels: Question.ScoreQuestion["criteria"],
     options?: Options,
   ): Promise<number> {
-    return (await this.ask({ answer: Question.score(question, levels) }, options)).answer;
+    return withOperation(
+      this.#model,
+      this.#settings,
+      "score",
+      options ?? {},
+      async (options, _context) => {
+        return (await this.ask({ answer: Question.score(question, levels) }, options)).answer;
+      },
+    );
   }
 
   async #select<C extends Candidates>(
     question: string,
     candidates: C,
     describe: (item: Candidate<C>, key: string) => Description,
-    options: RunOptions = {},
+    options: OperationOptions = {},
   ) {
     const entries = Object.entries(candidates) as [string, Candidate<C>][];
     const objects = Object.fromEntries(entries) as Record<string, Candidate<C>>;
@@ -220,10 +329,20 @@ export class BoundQuestions {
     describe: (item: Candidate<C>, key: string) => Description,
     options: Options = {},
   ): Promise<Candidate<C>> {
-    if (options.confidence !== undefined) probability(options.confidence, "confidence.minimum");
-    const { objects, answer } = await this.#select(question, candidates, describe, options);
-    if (options.confidence !== undefined) requireConfidence(answer, options.confidence, question);
-    return objects[answer.choice]!;
+    return withOperation(
+      this.#model,
+      this.#settings,
+      "choose",
+      options ?? {},
+      async (options, context) => {
+        context.stage = "decision";
+        if (options.confidence !== undefined) probability(options.confidence, "confidence.minimum");
+        const { objects, answer } = await this.#select(question, candidates, describe, options);
+        if (options.confidence !== undefined)
+          requireConfidence(answer, options.confidence, question);
+        return objects[answer.choice]!;
+      },
+    );
   }
 
   /** Return every original candidate, ordered by probability. Ties preserve enumeration order. */
@@ -231,13 +350,22 @@ export class BoundQuestions {
     question: string,
     candidates: C,
     describe: (item: Candidate<C>, key: string) => Description,
-    options?: RunOptions,
+    options?: OperationOptions,
   ): Promise<Answer.Ranked<Candidate<C>>[]> {
-    const { objects, answer } = await this.#select(question, candidates, describe, options);
-    return Answer.rank(answer).map(({ value, probability: mass }) => ({
-      value: objects[value]!,
-      probability: mass,
-    }));
+    return withOperation(
+      this.#model,
+      this.#settings,
+      "rank",
+      options ?? {},
+      async (options, context) => {
+        context.stage = "decision";
+        const { objects, answer } = await this.#select(question, candidates, describe, options);
+        return Answer.rank(answer).map(({ value, probability: mass }) => ({
+          value: objects[value]!,
+          probability: mass,
+        }));
+      },
+    );
   }
 
   /**
@@ -249,10 +377,20 @@ export class BoundQuestions {
     handlers: H,
     options: Options = {},
   ): Promise<Awaited<ReturnType<H[keyof H]>>> {
-    const chosen = await this.choose(question, handlers, (_, key) => key, options);
-    const signal = options.signal ?? new AbortController().signal;
-    signal.throwIfAborted();
-    return (await chosen({ signal })) as Awaited<ReturnType<H[keyof H]>>;
+    return withOperation<Awaited<ReturnType<H[keyof H]>>>(
+      this.#model,
+      this.#settings,
+      "branch",
+      options ?? {},
+      async (options, context): Promise<Awaited<ReturnType<H[keyof H]>>> => {
+        const chosen = await this.choose(question, handlers, (_, key) => key, options);
+        await context.decision();
+        context.stage = "handler";
+        const signal = context.signal;
+        context.check();
+        return (await chosen({ signal })) as Awaited<ReturnType<H[keyof H]>>;
+      },
+    );
   }
 }
 
@@ -273,32 +411,35 @@ export class EachQuestions {
     options?: Options,
   ): Promise<Question.Values<B>[]>;
   async ask(batch: Question.Batch | Schema.Type, options: Options = {}): Promise<unknown[]> {
-    if (Schema.isSchema(batch)) return this.#askSchema(batch, options);
-    const questions = Object.entries(Question.normalize(batch));
-    if (options.confidence !== undefined) probability(options.confidence, "confidence.minimum");
-    options.signal?.throwIfAborted();
-    if (this.#items.length === 0) return [];
-    const flattened = Object.fromEntries(
-      this.#items.flatMap((_, itemIndex) =>
-        questions.map(([, question], questionIndex) => [
-          `i${itemIndex}q${questionIndex}`,
-          { ...question, instructions: `About item${itemIndex}: ${question.instructions}` },
-        ]),
-      ),
-    );
-    const context = Object.fromEntries(this.#items.map((item, index) => [`item${index}`, item]));
-    const values = await this.#client.about(context).ask(flattened, options);
-    return this.#items.map(
-      (_, itemIndex) =>
-        Object.freeze(
-          Object.fromEntries(
-            questions.map(([key], questionIndex) => [
-              key,
-              values[`i${itemIndex}q${questionIndex}`],
-            ]),
-          ),
-        ) as Question.Values<Question.Batch>,
-    );
+    return this.#client[scopeOperation]("each.ask", options, async (options, operation) => {
+      operation.itemCount = this.#items.length;
+      if (Schema.isSchema(batch)) return this.#askSchema(batch, options);
+      const questions = Object.entries(Question.normalize(batch));
+      if (options.confidence !== undefined) probability(options.confidence, "confidence.minimum");
+      options.signal?.throwIfAborted();
+      if (this.#items.length === 0) return [];
+      const flattened = Object.fromEntries(
+        this.#items.flatMap((_, itemIndex) =>
+          questions.map(([, question], questionIndex) => [
+            `i${itemIndex}q${questionIndex}`,
+            { ...question, instructions: `About item${itemIndex}: ${question.instructions}` },
+          ]),
+        ),
+      );
+      const context = Object.fromEntries(this.#items.map((item, index) => [`item${index}`, item]));
+      const values = await this.#client.about(context).ask(flattened, options);
+      return this.#items.map(
+        (_, itemIndex) =>
+          Object.freeze(
+            Object.fromEntries(
+              questions.map(([key], questionIndex) => [
+                key,
+                values[`i${itemIndex}q${questionIndex}`],
+              ]),
+            ),
+          ) as Question.Values<Question.Batch>,
+      );
+    });
   }
 
   async #askSchema<S extends Schema.Type>(
@@ -326,6 +467,7 @@ export class EachQuestions {
     const results: Schema.Output<S>[] = [];
     // Sequential parsing bounds async user callbacks; all inference still uses one request.
     for (let itemIndex = 0; itemIndex < this.#items.length; itemIndex++) {
+      operationContext(options)?.check();
       options.signal?.throwIfAborted();
       const itemEvidence =
         evaluation === undefined
@@ -339,6 +481,8 @@ export class EachQuestions {
                 ]),
               ),
             };
+      const context = operationContext(options);
+      if (context) context.stage = "validation";
       results.push(await compiled.parse(itemEvidence, options));
     }
     return results;
@@ -346,7 +490,9 @@ export class EachQuestions {
 
   /** Ask the same yes/no question about all items in one request. */
   async is(question: string, options?: Options): Promise<boolean[]> {
-    return (await this.ask({ answer: question }, options)).map((row) => row.answer);
+    return this.#client[scopeOperation]("each.is", options ?? {}, async (options, _context) => {
+      return (await this.ask({ answer: question }, options)).map((row) => row.answer);
+    });
   }
 
   /** Score all items against the same ordered rubric in one request. */
@@ -355,22 +501,29 @@ export class EachQuestions {
     levels: Question.ScoreQuestion["criteria"],
     options?: Options,
   ): Promise<number[]> {
-    return (await this.ask({ answer: Question.score(question, levels) }, options)).map(
-      (row) => row.answer,
-    );
+    return this.#client[scopeOperation]("each.score", options ?? {}, async (options, _context) => {
+      return (await this.ask({ answer: Question.score(question, levels) }, options)).map(
+        (row) => row.answer,
+      );
+    });
   }
 }
 
 /**
  * Create a client with an explicit model. Construction performs no network activity.
  * @example
- * const questions = Questions.create({ model: Jev.create({ apiKey }) });
+ * const questions = Questions.create({
+ *   model: TypeSafe.create({ apiKey, timeout: "15 s" }),
+ *   defaults: { confidence: 0.6, timeout: "30 s" },
+ * });
  * const urgent = await questions.about(ticket).is("Is this urgent?");
  */
-export function create(options: { readonly model: QuestionModel }): QuestionsClient {
-  return new QuestionsClient(options.model);
+export function create(options: ClientOptions): QuestionsClient {
+  return new QuestionsClient(options.model, options);
 }
 
 // Kept in the public module so consumers can name inferred batch result types.
 export type { Batch, Values } from "./question.ts";
 export type { Awaitable };
+
+export type { Defaults, OperationOptions, SemanticHooks } from "./lifecycle.ts";
