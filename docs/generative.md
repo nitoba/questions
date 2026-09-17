@@ -10,18 +10,14 @@ output; a provider's presence in the SDK does not guarantee every model supports
 Install Questions from npm together with the optional AI SDK peers and the provider you use:
 
 ```sh
-bun add '@nitoba/questions@next' 'zod@^4.1.8' 'ai@^7.0.105' '@ai-sdk/provider@^4.0.17' '@ai-sdk/google@^4.0.74'
+bun add @nitoba/questions zod ai @ai-sdk/google
 ```
 
 Choose `@ai-sdk/anthropic`, `@ai-sdk/openai` or `@ai-sdk/gateway` instead of Google as needed.
-`ai` and `@ai-sdk/provider` are optional peers of Questions, resolved only by consumers using this
-integration. The latter supplies the precise public `LanguageModelV4` type without pulling the
-large AI SDK barrel into Questions' declarations. The three vendor SDKs are development dependencies
+`ai` is the runtime integration package. The selected AI SDK provider package supplies the shared provider contract transitively, so consumers do not need to install `@ai-sdk/provider` directly. The three vendor SDKs are development dependencies
 for tests/examples, not dependencies of Questions. No generative export is added to the root barrel.
 
-The native Questions API still supports Zod 4.0.0 and does not load AI SDK packages. This optional
-integration requires Zod >=4.1.8 within v4 because of its SDK dependencies. The tested versions are
-AI SDK 7.0.105, provider 4.0.17, Google 4.0.74, Anthropic 4.0.56, OpenAI 4.0.69 and Gateway 4.0.85.
+Questions targets Zod 4 and AI SDK 7. Install the packages by name and let your package manager resolve compatible current releases.
 Only configured `LanguageModelV4` instances are supported in this release, not V2/V3 instances,
 string model IDs, embedding models, or evaluation models. Strings would enable implicit routing.
 

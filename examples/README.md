@@ -4,7 +4,7 @@ Start with one decision. Progress to typed question batches, evidence, Zod, oper
 Web Streams, and a persistent fulfillment-exception application. **All examples, comments,
 sample data and tutorial instructions are in English.**
 
-These examples target the repository's current **0.1.0-alpha.6** API. They replace the previous
+These examples target the repository's current **0.1.0-rc.2** API. They replace the previous
 unstructured examples; they are not compatibility wrappers around them. No library API changes
 are needed to run this learning path.
 
@@ -95,8 +95,7 @@ selector fails; there is **no fake-model fallback**, implicit routing or automat
 Unused provider keys are not required. The repository includes the tested SDKs as development
 dependencies. In a consuming project install only the optional integration/vendor you use:
 see [native provider setup](../docs/providers.md) and [generative setup](../docs/generative.md).
-The current integration uses AI SDK 7 LanguageModelV4 and Zod >=4.1.8 within v4; the native
-package still supports Zod 4.0.0. Question batches use no Zod schema in application code, but
+The current integration uses AI SDK 7 LanguageModelV4 and Zod 4. Question batches use no Zod schema in application code, but
 the root package still declares that peer. They are not a JSON Schema/other-schema adapter.
 
 ### Compare captured inputs deliberately

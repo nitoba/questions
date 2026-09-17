@@ -25,13 +25,13 @@ by [effect-questions](https://github.com/saiashirwad/effect-questions).
 Install the published release candidate from npm. The `next` dist-tag tracks the current prerelease:
 
 ```sh
-bun add '@nitoba/questions@next' 'zod@^4.0.0'
+bun add @nitoba/questions zod
 ```
 
 With npm:
 
 ```sh
-npm install '@nitoba/questions@next' 'zod@^4.0.0'
+npm install @nitoba/questions zod
 ```
 
 The root import requires the Zod 4 peer even when you use only native question batches. Optional
@@ -82,7 +82,7 @@ prompted structured generation. Select the integration, not just a different URL
 In the consuming project, install the optional Gateway peer and a compatible Zod version:
 
 ```sh
-bun add '@ai-sdk/gateway@^4.0.85' 'zod@^4.1.8'
+bun add @ai-sdk/gateway zod
 ```
 
 ```ts
@@ -122,12 +122,12 @@ Use Gemini, Claude, GPT or a Gateway language model with the optional
 not the Evaluation V4 endpoint. In the consuming project, install the integration and one vendor:
 
 ```sh
-bun add 'ai@^7.0.105' '@ai-sdk/provider@^4.0.17' 'zod@^4.1.8' '@ai-sdk/google@^4.0.74'
+bun add ai zod @ai-sdk/google
 ```
 
-For Claude or GPT, use `@ai-sdk/anthropic@^4.0.56` or `@ai-sdk/openai@^4.0.69` instead of
-Google; for a Gateway language model, use `@ai-sdk/gateway@^4.0.85`. Only install what you use.
-The ranges start at the tested versions; later releases, every model and older SDK majors are not automatically verified.
+For Claude or GPT, use `@ai-sdk/anthropic` or `@ai-sdk/openai` instead of
+Google; for a Gateway language model, use `@ai-sdk/gateway`. Only install what you use.
+Questions targets the current supported AI SDK major; individual model availability and structured-output support remain provider-specific.
 This release accepts **configured LanguageModelV4 instances**, not bare strings, V2/V3 models,
 embedding models or Evaluation V4 instances. The selected model must support structured output.
 See the [TypeScript prerequisites](docs/generative.md#install-only-the-integration-you-use) for

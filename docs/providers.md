@@ -32,10 +32,10 @@ Defaults: `https://api.typesafe.ai/v1`, model `jev-latest`, relative path `syste
 
 ## Vercel: same application, different provider
 
-The package is not published by this change. After creating its local tarball, install it with Zod and the optional SDK:
+Install Questions, Zod and the optional Gateway SDK from npm:
 
 ```sh
-bun add /tmp/questions.tgz zod @ai-sdk/gateway
+bun add @nitoba/questions zod @ai-sdk/gateway
 ```
 
 ```ts
@@ -83,7 +83,7 @@ The adapter creates an official `gateway.evaluationModel(...)` and calls `doEval
 
 `apiKey` is required: this convenience API does not silently read credentials from the environment. `teamIdOrSlug`, `headers`, `fetch` and an SDK-compatible `baseURL` can be configured. The default prefix is `https://ai-gateway.vercel.sh/v4/ai`; a proxy prefix must implement that SDK protocol, not `/v1/chat/completions` or System One. The official SDK still owns its protocol headers and may add deployment/request metadata in a Vercel environment.
 
-This integration targets the **experimental Evaluation V4** contract and is tested with `@ai-sdk/gateway@4.0.85` and its `@ai-sdk/provider@4.0.17`. Gateway is an optional peer (`^4.0.85`). Its own Zod requirement is `^3.25.76 || ^4.1.8`; use **Zod >=4.1.8** with Questions + Gateway. The native Questions package continues to support Zod 4.0.0. No live-model accuracy, account permissions or billing behavior is established by the offline tests.
+This integration targets the **experimental Evaluation V4** contract. Install `@ai-sdk/gateway` and `zod` by name and let your package manager resolve compatible current releases. Questions targets Zod 4. No live-model accuracy, account permissions or billing behavior is established by the offline tests.
 
 ## System One: explicit endpoint and model
 
@@ -185,7 +185,6 @@ Every provider timeout now accepts a typed duration through timeout, retaining n
 [Generative.create](generative.md) accepts configured LanguageModelV4 instances from AI SDK 7.
 It is separate from this guide's Evaluation V4 bridge: it requests complete estimated distributions
 through structured generation, computes winners/scores locally, and marks every answer
-`probabilitySource: "estimated"`. Install its optional `ai` and `@ai-sdk/provider` peers and the
-chosen SDK provider. Existing `AISDK.create()` still rejects incomplete evaluation distributions.
+`probabilitySource: "estimated"`. Install `ai` and the chosen SDK provider; `@ai-sdk/provider` does not need to be installed directly by the consumer. Existing `AISDK.create()` still rejects incomplete evaluation distributions.
 The System One adapters now mark probabilities `provider`; absent provenance on other custom/SDK
 models remains unknown. These labels describe origin, not calibration.
