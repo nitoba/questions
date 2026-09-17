@@ -38,6 +38,12 @@ function stripInstallVersions(line) {
       .replace(new RegExp(`\"${escaped}(?:@(?:next|latest|[~^]?[0-9][^\"]*))?\"`, "g"), pkg)
       .replace(new RegExp(`${escaped}@(?:next|latest|[~^]?[0-9][^\\s]*)`, "g"), pkg);
   }
+
+  output = output
+    .replace(/\s+@ai-sdk\/provider(?=\s|$)/g, "")
+    .replace(/\s{2,}/g, " ")
+    .trimEnd();
+
   return output;
 }
 
@@ -100,6 +106,9 @@ for (const pattern of forbidden) {
   if (pattern.test(markdown)) throw new Error(`Version-pinned user documentation remains: ${pattern}`);
 }
 
-if (/bun add[^\n]*@ai-sdk\/provider/.test(markdown) || /npm install[^\n]*@ai-sdk\/provider/.test(markdown)) {
-  throw new Error("User-facing install commands must not require @ai-sdk/provider directly");
+const directProviderInstall = markdown
+  .split("\n")
+  .filter((line) => /^(\s*)(bun add|npm install|npm i)\b/.test(line) && line.includes("@ai-sdk/provider"));
+if (directProviderInstall.length > 0) {
+  throw new Error(`User-facing install commands must not require @ai-sdk/provider directly:\n${directProviderInstall.join("\n")}`);
 }
