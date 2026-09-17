@@ -1,12 +1,16 @@
 import { test, expect } from "bun:test";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root = fileURLToPath(new URL("../", import.meta.url));
 const tutorial = (name: string) => resolve(root, name);
-async function run(args: string[], variables: Record<string, string> = {}) {
+async function run(
+  args: string[],
+  variables: Record<string, string> = {},
+  cwd = resolve(root, ".."),
+) {
   const env = { ...process.env };
   // Never inherit a developer's paid-model keys or selection in subprocess tests.
   for (const key of [
@@ -26,8 +30,9 @@ async function run(args: string[], variables: Record<string, string> = {}) {
   ])
     delete env[key];
   Object.assign(env, variables);
-  const child = Bun.spawn([process.execPath, ...args], {
-    cwd: resolve(root, ".."),
+  // Prevent Bun from reloading a developer's credentials from local .env files.
+  const child = Bun.spawn([process.execPath, "--no-env-file", ...args], {
+    cwd,
     env,
     stdout: "pipe",
     stderr: "pipe",
@@ -101,4 +106,20 @@ test("CLI: shared tutorials and dedicated generative lesson reject missing confi
   });
   expect(comparison.code).toBe(1);
   expect(comparison.stderr).toContain("COMPARE_GENERATIVE_PROVIDER");
+});
+
+test("CLI: subprocesses never reload model credentials from local env files", async () => {
+  const folder = await mkdtemp(join(tmpdir(), "questions-env-"));
+  try {
+    await writeFile(join(folder, ".env"), "TYPESAFE_API_KEY=test-only-file-key\n");
+    const result = await run(
+      ["--eval", "console.log(process.env.TYPESAFE_API_KEY ?? 'not-loaded')"],
+      {},
+      folder,
+    );
+    expect(result.code).toBe(0);
+    expect(result.stdout.trim()).toBe("not-loaded");
+  } finally {
+    await rm(folder, { recursive: true, force: true });
+  }
 });
