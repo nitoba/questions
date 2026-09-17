@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased — executable examples
+
+- Replace the old examples with progressive English tutorials and a feature-coverage index.
+- Add a runnable fulfillment-exception application with SQLite, manual review, an atomic outbox and deduplicated delivery.
+- Execute tutorial functions in offline tests and validate local documentation links; library API and version are unchanged.
+
 ## 0.1.0-alpha.5
 
 - Add provider-neutral semantic onEvaluate/onDecision/onError hooks with operation IDs, safe classifications and explicit parent/child/call composition.

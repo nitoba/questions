@@ -65,9 +65,10 @@
     "format": "oxfmt --write .",
     "format:check": "oxfmt --check .",
     "build": "bun run --bun tsdown && tsc -p tsconfig.build.json",
-    "check": "bun run typecheck && bun run lint && bun run format:check && bun test && bun run build && bun run test:package",
+    "check": "bun run typecheck && bun run lint && bun run format:check && bun test && bun run build && bun run test:package && node scripts/check-example-links.mjs",
     "test:package": "node scripts/package-smoke.mjs && node scripts/sdk-package-smoke.mjs",
-    "test:package:native": "node scripts/package-smoke.mjs"
+    "test:package:native": "node scripts/package-smoke.mjs",
+    "test:examples": "bun test ./examples/tests && node scripts/check-example-links.mjs"
   },
   "dependencies": {
     "ms": "2.1.3",

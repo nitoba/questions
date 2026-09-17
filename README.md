@@ -6,6 +6,16 @@ Ask yes/no questions, choose among your own objects, score against explicit rubr
 
 This is an independent implementation inspired by [effect-questions](https://github.com/saiashirwad/effect-questions), not an Effect wrapper. **Alpha: API may change; not published to npm by this implementation.**
 
+## Learn through executable examples
+
+Start with the [progressive tutorial index](examples/README.md): native typed question batches,
+Zod Classic/Mini, evidence, policies, replay, provider selection and Web Streams. Each lesson
+uses a different scenario and declares its request cost. The [fulfillment desk](examples/16-fulfillment-desk/README.md)
+combines real SQLite persistence, a review API, bounded inference and a transactional notification outbox.
+
+Run `bun run test:examples` for offline executable checks. Only explicit live commands use your
+model credentials; tests never fall back to a paid provider.
+
 ## Run from source
 
 Use Bun **1.4.2**. The toolchain pins TypeScript **7.0.2**, Oxlint, Oxfmt and tsdown in `bun.lock`.
@@ -15,7 +25,7 @@ git clone https://github.com/nitoba/questions.git
 cd questions
 bun install --frozen-lockfile
 bun run check
-TYPESAFE_API_KEY=your-key bun examples/triage.ts
+TYPESAFE_API_KEY=your-key bun examples/02-native-question-schema.ts
 ```
 
 Live examples require a TypeSafe API key and may incur charges. Tests use deterministic provider fixtures and an in-process HTTP server, never a live paid model. The repository is private unless its owner changes visibility.
@@ -55,7 +65,7 @@ const questions = Questions.create({
 
 Install the optional `@ai-sdk/gateway` peer for Vercel. Its SDK requires Zod >=4.1.8 when used with Questions. The package root, native providers and streams never load that SDK. `@nitoba/questions/providers/ai-sdk` also adapts an existing Evaluation V4 model, including an SDK instance already configured for authentication or routing. `Jev.create` remains compatible.
 
-**Confidence is not identical across protocols.** TypeSafe retains its confidence; the AI SDK bridge uses an explicit top-two probability margin for choice/score and identifies its origin. Missing distributions fail rather than inventing certainty. Usage counters may be unreported. Read [the provider guide](docs/providers.md) for complete setup, custom endpoints, evidence contracts and transport guarantees. Run the live Gateway example with `AI_GATEWAY_API_KEY=your-key bun examples/vercel-triage.ts`.
+**Confidence is not identical across protocols.** TypeSafe retains its confidence; the AI SDK bridge uses an explicit top-two probability margin for choice/score and identifies its origin. Missing distributions fail rather than inventing certainty. Usage counters may be unreported. Read [the provider guide](docs/providers.md) for complete setup, custom endpoints, evidence contracts and transport guarantees. Run the live Gateway example with `AI_GATEWAY_API_KEY=your-key bun examples/12-providers-and-custom-models.ts vercel`.
 
 ## Ask with a Zod schema
 
@@ -94,7 +104,7 @@ const result = await questions.about("The API is returning 503").ask(triage);
 
 The current protocol supports finite decisions, not free-form JSON extraction. Use booleans, enums, nested objects, fixed tuples and annotated numbers; unsupported schemas fail before calling the provider. Zod is a required peer for the root package and `/schema`; `/streams` and `/providers/jev` remain independently usable without it. Zod is the required runtime peer; the Vercel subpath has an optional Gateway SDK peer. No Effect dependency is introduced.
 
-See [the schema guide](docs/schemas.md) for `.describe()`, `.meta()`, `Schema.registry`, probability vs score, optionals, errors, cancellation and advanced compiled plans. Run the complete live example with `TYPESAFE_API_KEY=your-key bun examples/schema-triage.ts`.
+See [the schema guide](docs/schemas.md) for `.describe()`, `.meta()`, `Schema.registry`, probability vs score, optionals, errors, cancellation and advanced compiled plans. Run the complete live example with `TYPESAFE_API_KEY=your-key bun examples/07-zod-decision-schemas.ts`.
 
 ## Client policies, hooks and human-readable durations
 
@@ -121,7 +131,7 @@ Semantic hooks describe one top-level operation, not every HTTP attempt. Derived
 
 `Duration` (root namespace or `/duration`) accepts typed units such as `"200 milis"`, `"1.5 s"` and `"2 minutes"`; use `Duration.parse()` for environment strings. Unknown units such as `"secods"` are rejected. `Schema.compile(schema).fields` maps question IDs to lossless input paths; `.diagnose(evidence)` joins existing evidence without inference or Zod callbacks. Diagnostics are also attached to schema/confidence errors and `run()` results, but never included in default telemetry.
 
-See [semantic DX and durations](docs/semantic-dx.md) for precedence, hook failure/cancellation, replay inheritance, privacy and path semantics. The runnable example is `examples/semantic-dx.ts` (requires a TypeSafe key).
+See [semantic DX and durations](docs/semantic-dx.md) for precedence, hook failure/cancellation, replay inheritance, privacy and path semantics. The runnable example is `examples/09-derived-clients-and-observability.ts` (requires a TypeSafe key).
 
 ## Existing question-batch API
 
@@ -237,7 +247,7 @@ await pipeline.forEach(
 
 `map` is sequential and ordered by default. `{ concurrency: 4 }` bounds **running tasks plus completed outputs waiting for the consumer**, not merely active requests. `{ ordered: false }` emits in completion order. A later failed task is not hidden behind an earlier slow task.
 
-The facade supports `map`, asynchronous `filter`, type-guard `filter`, `tap`, `scan`, `mapAccum`, `batch`, `take`, `takeUntil` (inclusive), `takeWhile` (exclusive), `through`, `forEach`, `toArray`, `pipeTo` and `for await`. `scan` and `mapAccum` take seed factories so separate runs do not share state. See the complete [conversation example](examples/conversation.ts).
+The facade supports `map`, asynchronous `filter`, type-guard `filter`, `tap`, `scan`, `mapAccum`, `batch`, `take`, `takeUntil` (inclusive), `takeWhile` (exclusive), `through`, `forEach`, `toArray`, `pipeTo` and `for await`. `scan` and `mapAccum` take seed factories so separate runs do not share state. See the complete [stateful feedback example](examples/14-stateful-streams.ts).
 
 Construction is lazy. Each terminal consumption is a **new execution**, with no replay or caching. Arrays are repeatable. Native streams and generators are single-use; a second consumption rejects. Use `Streams.defer(({ signal }) => acquireFreshSource(signal))` for fresh resources. Consumer cancellation, early termination and failures cancel upstream and signal in-flight callbacks.
 
@@ -286,7 +296,7 @@ const second = await first.replay({ signal: AbortSignal.timeout(15_000) });
 
 `retry: 2` means up to two additional HTTP attempts for 429/529. Objects support explicit statuses, network-failure opt-in, fixed/custom delays, exponential backoff and jitter. The total timeout covers attempts, hooks, body reading and cancellable backoff. Retry-After is never shortened. HTTP hooks are sequential, read-only and omit credentials and prompts. Schema, decoding and business-handler failures are not automatically retried.
 
-See [HTTP, retries, replay and the ofetch-inspired roadmap](docs/http-retry-replay.md) for policies, hooks, error behavior, provider comparisons and future DX opportunities. `examples/http-replay.ts` makes two explicit live evaluations.
+See [HTTP, retries, replay and the ofetch-inspired roadmap](docs/http-retry-replay.md) for policies, hooks, error behavior, provider comparisons and future DX opportunities. `examples/11-preparation-and-replay.ts` makes two explicit live evaluations.
 
 ## Evidence and expected loss
 
