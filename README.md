@@ -1,8 +1,8 @@
 # Questions
 
-Typed semantic decisions in ordinary TypeScript. **No Effect and no runtime dependencies.**
+Typed semantic decisions in ordinary TypeScript. **No Effect. Schema-first decisions with Zod 4.**
 
-Ask yes/no questions, choose among your own objects, score against explicit rubrics, and branch on validated evidence. Compose these operations with lazy, cancellable **native Web Streams**.
+Ask yes/no questions, choose among your own objects, score against explicit rubrics, and branch on validated evidence. Use Zod schemas for inferred output types, runtime validation and natural-language guidance. Compose these operations with lazy, cancellable **native Web Streams**.
 
 This is an independent implementation inspired by [effect-questions](https://github.com/saiashirwad/effect-questions), not an Effect wrapper. **Alpha: API may change; not published to npm by this implementation.**
 
@@ -26,10 +26,49 @@ To install a local build into another project:
 bun run build
 bun pm pack --filename /tmp/questions.tgz
 cd ../your-app
-bun add /tmp/questions.tgz
+bun add /tmp/questions.tgz zod
 ```
 
-## Ask typed questions
+## Ask with a Zod schema
+
+```ts
+import { z } from "zod";
+import { Jev, Questions, Schema } from "@nitoba/questions";
+
+const apiKey = process.env.TYPESAFE_API_KEY;
+if (!apiKey) throw new Error("Missing TYPESAFE_API_KEY");
+const questions = Questions.create({ model: Jev.create({ apiKey }) });
+
+const triage = z.object({
+  urgent: z.boolean().describe("Does the issue prevent production work?"),
+  team: z.enum(["billing", "platform"]).meta({
+    description: "Which team should investigate?",
+    questions: {
+      options: { billing: "Invoices and payments", platform: "API and deployments" },
+    },
+  } satisfies Schema.Metadata),
+  impact: z
+    .number()
+    .min(0)
+    .max(2)
+    .register(Schema.registry, {
+      kind: "score",
+      instructions: "How disruptive is the problem?",
+      levels: ["Minor", "Impaired", "Unavailable"],
+    }),
+});
+
+const result = await questions.about("The API is returning 503").ask(triage);
+// { urgent: boolean; team: "billing" | "platform"; impact: number }
+```
+
+`ask(schema)` returns `z.output<typeof schema>`, with **actual asynchronous Zod parsing**, not a cast. Descriptions, approved metadata and typed annotations guide inference. Refinements, transforms, defaults and readonly modifiers retain their Zod semantics. The same overload works with `each(...).ask(schema)` and inside stream operators.
+
+The current protocol supports finite decisions, not free-form JSON extraction. Use booleans, enums, nested objects, fixed tuples and annotated numbers; unsupported schemas fail before calling the provider. Zod is a required peer for the root package and `/schema`; `/streams` and `/providers/jev` remain independently usable without it. Zod is the only runtime peer; no Effect dependency is introduced.
+
+See [the schema guide](docs/schemas.md) for `.describe()`, `.meta()`, `Schema.registry`, probability vs score, optionals, errors, cancellation and advanced compiled plans. Run the complete live example with `TYPESAFE_API_KEY=your-key bun examples/schema-triage.ts`.
+
+## Existing question-batch API
 
 ```ts
 import { Jev, Question, Questions } from "@nitoba/questions";
@@ -213,7 +252,7 @@ const model = Jev.create({
 
 Only HTTP `429` and `529` are retried. Network failures, malformed responses and other HTTP statuses are not retried. `Retry-After` is a minimum delay; if it exceeds the configured maximum wait, the adapter fails instead of retrying earlier. A retry is not a guarantee against duplicate provider billing.
 
-Malformed context, questions or normalized evidence raise `ValidationError`. Transport/status/JSON decoding failures raise `ProviderError`. An expired provider budget raises `TimeoutError`. A confidence rejection raises `UncertainDecision`. Caller cancellation preserves `signal.reason`; arbitrary application/provider failures preserve their original values. These are ordinary thrown errors, **not a typed Promise error channel**. Original error causes can contain sensitive details from a custom transport; sanitize application logs.
+Malformed context, questions or normalized evidence raise `ValidationError`. Transport/status/JSON decoding failures raise `ProviderError`. An expired provider budget raises `TimeoutError`. A confidence rejection raises `UncertainDecision`. Schema-backed decisions that fail Zod validation raise `SchemaValidationError`, with original issue paths and a Zod error cause. Caller cancellation preserves `signal.reason`; arbitrary application/provider failures preserve their original values. These are ordinary thrown errors, **not a typed Promise error channel**. Original error causes can contain sensitive details from a custom transport; sanitize application logs.
 
 The decoder rejects missing/extra answer keys, undeclared choices, invalid probabilities, non-normalized distributions (tolerance `1e-6`), inconsistent winners, scores inconsistent with the weighted rubric, changed legends and invalid usage counters. Validation checks structure and arithmetic, not whether a semantic judgment is factually correct.
 
@@ -221,6 +260,6 @@ The decoder rejects missing/extra answer keys, undeclared choices, invalid proba
 
 `bun run check` runs TypeScript 7, Oxlint, Oxfmt check, Bun tests, tsdown build, declaration generation, an installed-tarball smoke test under Node and Bun, and publint. `bun run test:coverage` reports coverage. `tsdown` builds JavaScript; TypeScript 7 emits `.d.ts` files directly, avoiding reliance on the older compiler API for declaration bundling.
 
-The runtime uses only Web APIs. CI targets Bun and Node 22/24; browser/edge compatibility is architectural, not a claim that every browser or deployment target has been tested. Keep provider API keys on your server. See [migration notes](docs/migration.md), [contributing guidance](AGENTS.md), and JSDoc in `src`.
+The runtime uses only Web APIs. CI targets Bun and Node 22/24 and separately checks the minimum Zod 4.0.0 peer; browser/edge compatibility is architectural, not a claim that every browser or deployment target has been tested. Keep provider API keys on your server. See [migration notes](docs/migration.md), [contributing guidance](AGENTS.md), and JSDoc in `src`.
 
 MIT. No telemetry, background jobs, model-generated executable code, implicit caches or hidden retries.

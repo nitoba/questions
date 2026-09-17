@@ -53,3 +53,11 @@ Live semantic accuracy and real TypeSafe account permissions require an API key 
 - [effect-questions inspected revision](https://github.com/saiashirwad/effect-questions/tree/7f1fdc188ae455b6e770f3807d081018712f83bd)
 - [TypeSafe API](https://docs.typesafe.ai/api)
 - [WHATWG Streams specification](https://streams.spec.whatwg.org/)
+
+## Zod schema boundary (alpha.2)
+
+`BoundQuestions.ask` and `EachQuestions.ask` distinguish Zod 4 core schemas from existing question batches. `schema-annotations.ts` reads only standard guidance and the Questions metadata namespace, with an explicit typed registry. `internal/schema-compiler.ts` lowers supported schema inputs into finite questions with collision-free transport IDs and reconstructs their input shape. `schema.ts` exposes reusable compiled plans and applies `safeParseAsync`, preserving `z.output<S>`.
+
+Provider validation and confidence gates run before any user validation or transformation callback. The compiler does not pretend unsupported schema input kinds are free-form structured generation. Optional fields use explicit presence questions in the same request. Collection parsing is sequential and nontransactional; stream execution remains governed by the existing native stream runtime.
+
+Zod 4 is a peer dependency, imported through `zod/v4/core` for Classic/Mini compatibility, and is not bundled. Streams and the standalone Jev provider have no runtime Zod import. Root and `/schema` share one registry instance. See [schemas](schemas.md) for the support matrix, metadata precedence and error contracts.

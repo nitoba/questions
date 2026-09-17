@@ -28,3 +28,9 @@ Validation is intentionally stricter: probability mass, chosen maximum, weighted
 The native implementation has no built-in Effect metrics/tracing service. Decorate `QuestionModel.evaluate` or inject a traced fetch. Observe one evaluation rather than incrementing metrics for every projected batch field. Propagate cancellation through decorators and avoid logging context, credentials or sensitive error causes by default.
 
 Original inspiration is acknowledged, but the runtime and validation code are independently implemented. No Effect code, runtime dependency, schemas or internal abstractions are bundled.
+
+## Adopt Zod incrementally (alpha.2)
+
+Existing `Question.boolean`, `Question.choice`, `Question.score`, plain batches and their inferred results remain supported. For schema-driven results, pass a `z.object(...)` (not a raw object of Zod fields) to `ask`. Attach instructions with `.describe()`, standard `.meta()` fields, or typed `.register(Schema.registry, ...)` annotations. Explicitly annotate numbers as probability or score. The result is the parsed `z.output<typeof schema>`, including transforms.
+
+Install the Zod 4 peer alongside the package. Existing clients importing the root now resolve that peer even when using only the question-batch API. Applications using only streams or the standalone Jev provider can keep their independent subpath imports. No Effect schema adapter or free-form extraction is implied; see [the schema guide](schemas.md).
