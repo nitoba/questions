@@ -1,25 +1,46 @@
-name: Bootstrap toolchain
+name: Prepare and verify toolchain
 on:
   push:
     paths: [".github/workflows/bootstrap.yml"]
 permissions:
   contents: write
 jobs:
-  lockfile:
+  prepare:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22.16.0"
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: "1.4.2"
-      - name: Resolve exact toolchain and lock dependencies
+      - run: bun install --frozen-lockfile
+      - name: Apply pinned formatter once
         run: |
-          bun add --dev --exact @types/bun typescript@7.0.2 oxlint@1.83.0 oxfmt@0.66.0 tsdown@0.23.0 publint
-          bun --version
-          bun run tsc --version
+          bun run format
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add package.json bun.lock
-          git commit -m "chore: lock Bun dependencies and exact development toolchain"
-          git pull --rebase origin main
-          git push origin HEAD:main
+          git add src tests scripts examples docs README.md AGENTS.md package.json tsconfig*.json tsdown.config.ts .ox* .github
+          if ! git diff --cached --quiet; then
+            git commit -m "style: apply pinned Oxfmt across source tests examples and documentation"
+            git pull --rebase origin main
+            git push origin HEAD:main
+          fi
+      - name: Validate exact toolchain and distributable
+        run: |
+          set +e
+          bun --version
+          bun run tsc --version
+          bun run check > checks.log 2>&1
+          code=$?
+          cat checks.log
+          if [ "$code" -ne 0 ]; then
+            node --input-type=module -e 'import{readFileSync}from"node:fs";for(const line of readFileSync("checks.log","utf8").split("\n").slice(-100)){if(line)console.log("::error::"+line.replaceAll("%","%25").replaceAll("\r","%0D"));}'
+          fi
+          exit "$code"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: preparation-log
+          path: checks.log
