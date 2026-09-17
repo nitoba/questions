@@ -644,3 +644,34 @@ test("a failing or timed-out decision hook prevents the selected branch handler"
   );
   assert.equal(handlers, 0);
 });
+
+test("invalid context reports zero evaluations and the context stage", async () => {
+  const { client, calls, errors } = observed();
+  await assert.rejects(
+    client.about({ invalid: Number.NaN }).evidence({ ok: "x" }),
+    ValidationError,
+  );
+  assert.equal(calls.length, 0);
+  assert.equal(errors.length, 1);
+  assert.equal(errors[0]!.stage, "context");
+  assert.equal(errors[0]!.evaluationCount, 0);
+});
+
+test("evidence checks its deadline after snapshotting user context before dispatch", async () => {
+  const { client, calls, errors } = observed();
+  const source = {
+    get content() {
+      const until = performance.now() + 15;
+      while (performance.now() < until) {
+        /* An enumerable application getter runs during the JSON snapshot. */
+      }
+      return "context";
+    },
+  };
+  await assert.rejects(
+    client.about(source).evidence({ ok: "x" }, { timeout: "5 ms" }),
+    TimeoutError,
+  );
+  assert.equal(calls.length, 0);
+  assert.equal(errors[0]!.evaluationCount, 0);
+});

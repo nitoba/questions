@@ -154,12 +154,15 @@ export class BoundQuestions {
               : this.#source;
           operation?.check();
           scope.check();
+          const request = { state: state(current), questions };
+          operation?.check();
+          scope.check();
           if (operation) {
             operation.stage = "inference";
             operation.evaluationCount++;
           }
           const response = await abortable(
-            this.#model.evaluate({ state: state(current), questions }, { signal: scope.signal }),
+            this.#model.evaluate(request, { signal: scope.signal }),
             scope.signal,
           );
           operation?.check();
