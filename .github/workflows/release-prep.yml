@@ -2,8 +2,10 @@ name: Validate release candidate preparation
 
 on:
   push:
-    branches: [release/0.1.0-rc.1]
-    paths: [.github/workflows/release-prep.yml]
+    branches:
+      - release/0.1.0-rc.1
+    paths:
+      - .github/workflows/release-prep.yml
 
 permissions:
   contents: write
@@ -26,76 +28,16 @@ jobs:
         with:
           bun-version: "1.4.2"
 
-      - name: Update release-candidate documentation
-        run: |
-          python3 - <<'PY'
-          from pathlib import Path
-
-          readme = Path('README.md')
-          text = readme.read_text()
-          old = '''> **Alpha:** this README describes the `0.1.0-alpha.6` API. See the [changelog](CHANGELOG.md)
-          > and [migration guide](docs/migration.md) before upgrading. Decisions are finite classifications,
-          > not arbitrary JSON generation, factual guarantees or authorization to execute business actions.'''.replace('          ', '')
-          new = '''> **Release candidate:** this README describes the `0.1.0-rc.1` API. The public surface is now
-          > frozen for the 0.1.0 release candidate; fixes and compatibility validation take priority over new
-          > features. Decisions are finite classifications, not arbitrary JSON generation, factual guarantees
-          > or authorization to execute business actions. See the [changelog](CHANGELOG.md) and
-          > [migration guide](docs/migration.md) before upgrading.'''.replace('          ', '')
-          assert old in text
-          text = text.replace(old, new, 1)
-
-          marker = '### Use a local build in another project\n'
-          install = '''### Install the release candidate from npm
-
-After `0.1.0-rc.1` is published, install the prerelease explicitly through the `next` dist-tag:
-
-```sh
-bun add '@nitoba/questions@next' 'zod@^4.0.0'
-```
-
-Do not rely on `latest` for the release candidate. Optional Gateway and generative integrations
-have additional peers described in [Providers](#providers). The package is public but live model
-calls still require your own provider credentials and may incur charges.
-
-'''
-          assert marker in text
-          text = text.replace(marker, install + marker, 1)
-          readme.write_text(text)
-
-          generative = Path('docs/generative.md')
-          text = generative.read_text()
-          assert 'Available in `0.1.0-alpha.6`.' in text
-          generative.write_text(text.replace('Available in `0.1.0-alpha.6`.', 'Available in `0.1.0-rc.1`.', 1))
-
-          changelog = Path('CHANGELOG.md')
-          text = changelog.read_text()
-          heading = '## Unreleased — generative examples and README\n'
-          assert heading in text
-          replacement = '''## 0.1.0-rc.1
-
-- Promote the tested alpha API to the first release candidate without adding new runtime features.
-- Prepare the scoped package for public npm publication under the `next` dist-tag, with an exact-version manual release workflow and a local `npm publish --dry-run` command.
-- Add npm release metadata, package discovery fields, a prepublish validation gate and a documented first-publish/Trusted-Publishing migration procedure.
-'''
-          text = text.replace(heading, replacement, 1)
-          text = text.replace(
-              'This implementation does not publish the package or run paid live-model evaluations.',
-              'Repository changes do not publish the package automatically, and release validation does not run paid live-model evaluations.',
-              1,
-          )
-          changelog.write_text(text)
-          PY
-
+      - run: node .github/scripts/prepare-release.mjs
       - run: bun install --frozen-lockfile
       - run: bun run check
-      - name: npm publication dry run
-        run: npm publish --dry-run --access public --tag next
+      - run: npm publish --dry-run --access public --tag next
 
       - name: Commit validated release preparation
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git rm .github/workflows/release-prep.yml
+          git rm .github/workflows/release-prep.yml .github/scripts/prepare-release.mjs
           git add README.md CHANGELOG.md docs/generative.md package.json .github/workflows/publish.yml docs/releasing.md
           git commit -m 'chore(release): prepare 0.1.0-rc.1 for npm'
           git push origin HEAD:release/0.1.0-rc.1
