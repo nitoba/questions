@@ -10,7 +10,7 @@ readable deadlines, explicit retries, replay and observability as your applicati
 No Effect dependency, service container or alternative execution runtime. Independently inspired
 by [effect-questions](https://github.com/saiashirwad/effect-questions).
 
-> **Alpha:** this README describes the `0.1.0-alpha.5` API. See the [changelog](CHANGELOG.md)
+> **Alpha:** this README describes the `0.1.0-alpha.6` API. See the [changelog](CHANGELOG.md)
 > and [migration guide](docs/migration.md) before upgrading. Decisions are finite classifications,
 > not arbitrary JSON generation, factual guarantees or authorization to execute business actions.
 
@@ -125,6 +125,38 @@ same, but confidence metrics can differ between providers.
 See the [provider guide](docs/providers.md) and
 [provider tutorial](examples/12-providers-and-custom-models.ts) for custom endpoints,
 transport injection, existing SDK instances and implementing `QuestionModel.evaluate`.
+
+### Generative language models
+
+Use Gemini, Claude, GPT or a Gateway language model with the optional
+[`Generative` provider](docs/generative.md). It uses internal prompts and structured output,
+not the Evaluation V4 endpoint:
+
+```ts
+import { createGoogleGenerativeAI } from "@ai-sdk/google";
+import * as Generative from "@nitoba/questions/providers/generative";
+
+const googleKey = process.env.GOOGLE_GENERATIVE_AI_API_KEY;
+const googleModel = process.env.GENERATIVE_MODEL;
+if (!googleKey || !googleModel) throw new Error("Set the Google key and model ID");
+const google = createGoogleGenerativeAI({ apiKey: googleKey });
+const generative = Questions.create({
+  model: Generative.create({
+    model: google(googleModel),
+    evidence: "estimated",
+    timeout: "20 seconds",
+  }),
+});
+const needsReview = await generative.about(ticket).is("Does this require human review?");
+```
+
+Install the optional `ai` and `@ai-sdk/provider` peers plus your provider package; see the guide
+for tested versions and TypeScript prerequisites. Native Questions imports still do not load
+these SDKs. All generated probabilities are explicitly marked `estimated`; they are not
+calibrated correctness scores. Choice, weighted score and confidence margins are computed locally
+from validated distributions. Schemas, streams, defaults, diagnostics and replay stay unchanged.
+Retries and model selection are explicit; unsupported free-form schemas remain unsupported.
+The [generative tutorial](examples/17-generative-models.ts) covers complete provider configuration.
 
 ## Zod schemas
 

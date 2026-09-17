@@ -179,3 +179,13 @@ Questions-owned transports now use ofetch with the shared `retry`/`hooks` config
 ## Client-level policy versus transport policy (alpha.5)
 
 Every provider timeout now accepts a typed duration through timeout, retaining numeric timeoutMs as an exclusive compatibility alias. HTTP retry options similarly accept initialDelay, maxDelay and delay; the generic AISDK bridge still cannot control another instance's transport retry policy. Questions client defaults and semantic hooks observe full operations, while provider hooks remain HTTP-attempt events. See [semantic DX](semantic-dx.md) for the exact grammar, precedence and limits.
+
+## Generative language models (alpha.6)
+
+[Generative.create](generative.md) accepts configured LanguageModelV4 instances from AI SDK 7.
+It is separate from this guide's Evaluation V4 bridge: it requests complete estimated distributions
+through structured generation, computes winners/scores locally, and marks every answer
+`probabilitySource: "estimated"`. Install its optional `ai` and `@ai-sdk/provider` peers and the
+chosen SDK provider. Existing `AISDK.create()` still rejects incomplete evaluation distributions.
+The System One adapters now mark probabilities `provider`; absent provenance on other custom/SDK
+models remains unknown. These labels describe origin, not calibration.

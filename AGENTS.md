@@ -20,3 +20,7 @@
 - Semantic hooks belong to one top-level operation; do not count HTTP retries as extra decisions or emit nested-helper duplicates. Events must not expose prompts, values, diagnostics or raw error causes.
 - Derived clients snapshot policies and compose hooks parent-first. Never inherit AbortSignals or a running timeout into prepared/replayed work.
 - Field diagnostics use lossless input path arrays, existing validated evidence, and no extra inference or Zod callbacks. Preserve inactive optional branches and distinguish input paths from transformed outputs.
+
+- Generative integration stays in its optional subpath. Use the official AI SDK with explicit LanguageModelV4 instances, maxRetries:0 by default, and no tools or output repair.
+- Generated probabilities must retain estimated provenance. Validate the complete batch before policies or Zod callbacks, and derive winners/scores from distributions locally.
+- Keep generated-output limits honest: externally owned SDK transports buffer responses; post-generation byte checks are not HTTP byte ceilings.

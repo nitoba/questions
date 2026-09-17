@@ -4,7 +4,7 @@ Start with one decision. Progress to typed question batches, evidence, Zod, oper
 Web Streams, and a persistent fulfillment-exception application. **All examples, comments,
 sample data and tutorial instructions are in English.**
 
-These examples target the repository's current **0.1.0-alpha.5** API. They replace the previous
+These examples target the repository's current **0.1.0-alpha.6** API. They replace the previous
 unstructured examples; they are not compatibility wrappers around them. No library API changes
 are needed to run this learning path.
 
@@ -75,6 +75,12 @@ Run each file separately. There is deliberately no "run all live examples" comma
 | [14: Stateful streams](14-stateful-streams.ts)                       | Session feedback; transition events, summaries and early termination                       | No             | Yes     | Up to 3                                        |
 | [15: Web API interoperability](15-native-stream-interop.ts)          | NDJSON report through native readers, transforms, Response and sinks                       | No             | Yes     | **0; no key required**                         |
 | [16: Fulfillment desk](16-fulfillment-desk/README.md)                | Persistent case processing, review API, atomic outbox and deduplicated delivery            | Yes            | Mixed   | One per claimed case; all other commands add 0 |
+
+Additional lesson: [17: Generative language models](17-generative-models.ts) uses internal prompts
+and the same finite schemas with Gemini, Claude, GPT or Gateway. It performs one evaluation,
+uses Zod without streams, and records estimated probability provenance. Select `GENERATIVE_PROVIDER`
+and `GENERATIVE_MODEL` explicitly; see [the generative guide](../docs/generative.md) for credentials
+and SDK requirements. It does not change the TypeSafe defaults of earlier tutorials.
 
 Counts describe client evaluations, not a guarantee of upstream billing: explicitly enabled
 HTTP retries and a Gateway's service-side policies may add work. The sample records are fictional;

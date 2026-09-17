@@ -54,3 +54,12 @@ Use `run` only when typed output plus evidence/replay are needed, and `prepare` 
 Existing clients and numeric timeoutMs/initialDelayMs/maxDelayMs/delayMs settings remain valid. New code can use timeout: "15 seconds" and retry: { maxRetries: 2, initialDelay: "200 ms", maxDelay: "3 s" }. Do not supply both spellings. Bare numbers stay milliseconds; strings require a known unit, and widened config strings use Duration.parse(). ms@2.1.3 is a runtime dependency; its ambient types are not exposed to consumers.
 
 Set client defaults and semantic hooks with Questions.create({ model, defaults, hooks }); derive clients with extend(). These are separate from provider timeout and HTTP hooks. The total operation budget includes live context, validation, hooks and branch handler waiting. See [semantic DX](semantic-dx.md) for hook inheritance, error handling and cancellation semantics. Each Execution now exposes operationId and diagnostics; compiled schemas expose fields and diagnose. Confidence errors on schema-backed decisions include a path and questionId, while SchemaValidationError retains Zod issues plus field evidence. These descriptors refer to schema inputs, not arbitrary transformed output paths.
+
+## Add language models (alpha.6)
+
+Existing native providers and the Evaluation V4 adapter remain compatible. Additive
+`ProbabilitySource` metadata is preserved on answers and boolean/coarsening helpers; missing
+metadata remains unknown. `Generative.create({ model, evidence: "estimated" })` is an opt-in
+subpath accepting a configured AI SDK LanguageModelV4. The new `ai` and `@ai-sdk/provider`
+peers are optional; native users do not install them. No thresholds are automatically recalibrated,
+no arbitrary JSON generation is enabled, and SDK retries default to zero. See [generative providers](generative.md).

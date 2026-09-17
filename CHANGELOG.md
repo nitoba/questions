@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.0-alpha.6
+
+- Add the optional `Generative.create` language-model integration through AI SDK 7 structured output.
+- Require explicit estimated evidence, validate full distributions, and compute choices/scores locally.
+- Preserve probability provenance separately from confidence metrics, including diagnostics and probability helpers.
+- Retain cancellation/deadlines, default-zero SDK retries, immutable settings, and the existing Evaluation V4 contract.
+- Add official Google/Anthropic/OpenAI/Gateway contract tests, installed-consumer tests, a generative guide and tutorial 17.
+
 ## Unreleased — executable examples
 
 - Replace the old examples with progressive English tutorials and a feature-coverage index.
