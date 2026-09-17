@@ -39,7 +39,7 @@
     "lint": "oxlint --deny-warnings",
     "format": "oxfmt --write .",
     "format:check": "oxfmt --check .",
-    "build": "tsdown && tsc -p tsconfig.build.json",
+    "build": "bun run --bun tsdown && tsc -p tsconfig.build.json",
     "check": "bun run typecheck && bun run lint && bun run format:check && bun test && bun run build && bun run test:package",
     "test:package": "node scripts/package-smoke.mjs"
   },
