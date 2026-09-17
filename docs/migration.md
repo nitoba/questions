@@ -42,3 +42,9 @@ Existing `Jev.create({ apiKey, baseUrl })` calls remain valid. New code can use 
 **Type change:** usage counters are now optional, because SDK providers may omit them. Missing tokens are unknown, not zero; account for that explicitly. Choice/score evidence now optionally records `confidenceSource`; native TypeSafe reports `provider`, SDK defaults to `margin`, and custom policies report `custom`. Thresholds may need recalibration across providers. New optional envelope fields preserve rounding, warnings and provider metadata. Missing SDK distributions are rejected.
 
 The root package still needs only Zod. The Vercel subpath adds an optional `@ai-sdk/gateway` peer and requires Zod >=4.1.8 for the SDK, while native schema support retains its Zod 4.0.0 minimum. See [provider setup and contracts](providers.md).
+
+## HTTP and replay (alpha.4)
+
+No changes are required for `ask`, `evidence`, existing Jev/System One retry objects or streams. ofetch 1.5.0 is a new runtime dependency, installed with the package; it is not bundled into the independent streams or structural AI SDK bridge. The Gateway preset now accepts the same explicit retry/hook policy as the native providers. Arbitrary supplied SDK models still own their transport policy.
+
+Use `run` only when typed output plus evidence/replay are needed, and `prepare` when context must be captured before inference or rerun after an error. HTTP hooks run per attempt; Zod transforms run per explicit inference, never per HTTP retry. Live replay may incur charges and is not an idempotency or offline playback feature. See [the full guide](http-retry-replay.md).

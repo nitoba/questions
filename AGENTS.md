@@ -13,3 +13,5 @@
 - Do not publish to npm without explicit authorization.
 - Keep optional Gateway imports confined to the Vercel subpath. Test both native consumers without the SDK and consumers with the real SDK installed.
 - Never guess distributions, missing token counts, or TypeSafe confidence from another protocol. Preserve provenance and reported precision; see docs/providers.md.
+- Owned HTTP transports use pinned ofetch through internal/http-client.ts. Keep total budgets, abort-aware backoff and byte limits; never expose raw FetchError or mutable interceptor contexts publicly.
+- Execution.replay is a new potentially paid inference from captured inputs, not a cache or offline playback. Never capture business handlers or inherit prior signals. Keep the prepared handle usable after failure.

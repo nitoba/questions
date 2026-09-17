@@ -158,3 +158,7 @@ const result = await compiled.parse(evidence, { confidence: 0.6 });
 A compiled plan snapshots metadata and uses opaque, collision-free `q0`, `q1`, ... transport IDs. `parse` revalidates the supplied evidence even when called outside the client; it never blindly trusts an asserted TypeScript type. It runs the original schema on each invocation. Do not mutate schema definitions after compilation. Constant-only plans have no questions and should use `compiled.parse()` without calling `evidence({})`.
 
 The same exports are available from `@nitoba/questions/schema`; its registry is the same instance used by the root `Schema` namespace. See [Zod metadata](https://zod.dev/metadata), [Zod library-author guidance](https://zod.dev/library-authors), and the [TypeSafe API protocol](https://docs.typesafe.ai/api).
+
+## Retain evidence and replay
+
+`q.run(schema)` returns `Execution<z.output<typeof schema>>` with `.value`, `.evidence` and `.replay()`. A replay makes a new inference from the original context/question snapshot and runs Zod callbacks again. It is not offline playback or a cache. `q.prepare(schema)` separates context capture from inference and provides a handle that survives a failed run. See [HTTP and replay](http-retry-replay.md).

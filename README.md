@@ -238,6 +238,29 @@ Use `.toReadable()` for `getReader`, `pipeThrough`, `pipeTo`, `tee`, framework a
 
 **Jev does not return token streams through this adapter.** Its documented `/v1/systemone` endpoint returns structured decisions as JSON. These streams process input items incrementally. See [stream lifetime and backpressure](docs/streams.md).
 
+## Retry and replay explicitly
+
+All Questions-owned HTTP providers now use **ofetch 1.5.0**, including the transport supplied to the optional Gateway SDK. Retries remain disabled unless configured:
+
+```ts
+const model = TypeSafe.create({
+  apiKey,
+  timeoutMs: 15_000,
+  retry: { maxRetries: 2, statusCodes: [429, 503, 529], maxDelayMs: 3_000 },
+  hooks: { onRetry: ({ nextAttempt, delayMs }) => console.log(nextAttempt, delayMs) },
+});
+const client = Questions.create({ model });
+const first = await client.about(ticket).run(triage);
+console.log(first.value, first.evidence?.usage);
+const second = await first.replay({ signal: AbortSignal.timeout(15_000) });
+```
+
+`run` retains typed output and evidence; `replay` starts a **new potentially paid inference over the same snapshot**, not a cached result. Live context is not reread. Previous signals are never inherited. Zod callbacks run again, but downstream business actions do not. For explicit capture without inference and rerunning after errors, use `const prepared = await q.prepare(schema); await prepared.run()`.
+
+`retry: 2` means up to two additional HTTP attempts for 429/529. Objects support explicit statuses, network-failure opt-in, fixed/custom delays, exponential backoff and jitter. The total timeout covers attempts, hooks, body reading and cancellable backoff. Retry-After is never shortened. HTTP hooks are sequential, read-only and omit credentials and prompts. Schema, decoding and business-handler failures are not automatically retried.
+
+See [HTTP, retries, replay and the ofetch-inspired roadmap](docs/http-retry-replay.md) for policies, hooks, error behavior, provider comparisons and future DX opportunities. `examples/http-replay.ts` makes two explicit live evaluations.
+
 ## Evidence and expected loss
 
 ```ts
@@ -267,7 +290,7 @@ Implement `QuestionModel` to add a provider. Its `evaluate(request, { signal })`
 
 The Jev adapter uses native `fetch`, supports transport injection, converts `noul` to boolean evidence and snake-case token counters to camelCase, bounds JSON response bytes, and accepts an overall timeout including response reads and backoff. Structured option descriptions are encoded as JSON text. The model object does not expose the API key.
 
-There are **no retries by default**. Opt in explicitly:
+There are **no retries by default**. The original configuration remains supported:
 
 ```ts
 const model = Jev.create({
@@ -278,7 +301,7 @@ const model = Jev.create({
 });
 ```
 
-Only HTTP `429` and `529` are retried. Network failures, malformed responses and other HTTP statuses are not retried. `Retry-After` is a minimum delay; if it exceeds the configured maximum wait, the adapter fails instead of retrying earlier. A retry is not a guarantee against duplicate provider billing.
+By default an enabled retry policy covers HTTP `429` and `529` only. Explicit `statusCodes` and `networkErrors` can broaden it; malformed responses are never retried. `Retry-After` is a minimum delay; if it exceeds the configured maximum wait, the adapter fails instead of retrying earlier. A retry is not a guarantee against duplicate provider billing.
 
 Malformed context, questions or normalized evidence raise `ValidationError`. Transport/status/JSON decoding failures raise `ProviderError`. An expired provider budget raises `TimeoutError`. A confidence rejection raises `UncertainDecision`. Schema-backed decisions that fail Zod validation raise `SchemaValidationError`, with original issue paths and a Zod error cause. Caller cancellation preserves `signal.reason`; arbitrary application/provider failures preserve their original values. These are ordinary thrown errors, **not a typed Promise error channel**. Original error causes can contain sensitive details from a custom transport; sanitize application logs.
 
@@ -288,6 +311,6 @@ The decoder rejects missing/extra answer keys, undeclared choices, invalid proba
 
 `bun run check` runs TypeScript 7, Oxlint, Oxfmt check, Bun tests, tsdown build, declaration generation, an installed-tarball smoke test under Node and Bun, and publint. `bun run test:coverage` reports coverage. `tsdown` builds JavaScript; TypeScript 7 emits `.d.ts` files directly, avoiding reliance on the older compiler API for declaration bundling.
 
-The runtime uses only Web APIs. CI targets Bun and Node 22/24 and separately checks the minimum Zod 4.0.0 peer; browser/edge compatibility is architectural, not a claim that every browser or deployment target has been tested. Keep provider API keys on your server. See [migration notes](docs/migration.md), [contributing guidance](AGENTS.md), and JSDoc in `src`.
+The source uses Web APIs with ofetch for HTTP; the optional Gateway SDK owns its platform integration. CI targets Bun and Node 22/24 and separately checks the minimum Zod 4.0.0 peer; browser/edge compatibility is architectural, not a claim that every browser or deployment target has been tested. Keep provider API keys on your server. See [migration notes](docs/migration.md), [contributing guidance](AGENTS.md), and JSDoc in `src`.
 
 MIT. Questions adds no telemetry, background jobs, model-generated executable code, implicit caches or hidden retries. The optional official Gateway SDK/service has its own request metadata and logging policies.

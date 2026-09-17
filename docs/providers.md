@@ -28,7 +28,7 @@ const questions = Questions.create({
 });
 ```
 
-Defaults: `https://api.typesafe.ai/v1`, model `jev-latest`, relative path `systemone`. It is a preset of the native System One transport, not a separate copy of HTTP/retry code. `Jev.create` remains supported, including the old `baseUrl` spelling. New APIs consistently use `baseURL`; supplying both spellings to Jev is rejected.
+Defaults: `https://api.typesafe.ai/v1`, model `jev-latest`, relative path `systemone`. It is a preset of the shared ofetch-based System One transport, not a separate copy of HTTP/retry code. `Jev.create` remains supported, including the old `baseUrl` spelling. New APIs consistently use `baseURL`; supplying both spellings to Jev is rejected.
 
 ## Vercel: same application, different provider
 
@@ -79,7 +79,7 @@ const readable = Streams.from(["API outage", "Invoice request"])
   .toReadable(); // native ReadableStream<z.output<typeof triage>>
 ```
 
-The adapter creates an official `gateway.evaluationModel(...)` and calls `doEvaluate` once. It does **not** call AI SDK core `evaluate`, which has its own default retry policy. Gateway service-side routing, caching and fallback policies remain the service's responsibility. `providerOptions` forwards explicit JSON namespaces without claiming every option is supported by every model.
+The adapter creates an official `gateway.evaluationModel(...)` and calls `doEvaluate` once; configured transport retries may make additional HTTP attempts within that call. It does **not** call AI SDK core `evaluate`, which has its own default retry policy. Gateway service-side routing, caching and fallback policies remain the service's responsibility. `providerOptions` forwards explicit JSON namespaces without claiming every option is supported by every model.
 
 `apiKey` is required: this convenience API does not silently read credentials from the environment. `teamIdOrSlug`, `headers`, `fetch` and an SDK-compatible `baseURL` can be configured. The default prefix is `https://ai-gateway.vercel.sh/v4/ai`; a proxy prefix must implement that SDK protocol, not `/v1/chat/completions` or System One. The official SDK still owns its protocol headers and may add deployment/request metadata in a Vercel environment.
 
@@ -112,7 +112,7 @@ The host must accept `{ state, model, questions }` with `noul`, `choice` and `sc
 
 Credentials may be **explicitly omitted** for a trusted unauthenticated endpoint, such as a local deployment. There is no implicit TypeSafe model, URL or credential fallback. `baseURL` and `model` are required. URLs reject embedded credentials, query parameters and fragments. Relative endpoint paths reject traversal and absolute URLs. Headers are snapshotted and cannot replace managed authentication/protocol headers. Use trusted configuration, not an unvalidated URL from an end user.
 
-Native System One/TypeSafe retries remain opt-in for HTTP 429 and 529 only. `Retry-After`, the total timeout and the maximum delay remain enforced. No network, decoding, schema or application-handler error is automatically retried.
+HTTP retries are opt-in for System One/TypeSafe and Vercel. Their default eligible statuses are 429/529; explicit status codes and network-failure opt-in are available. `Retry-After`, the total timeout and the maximum delay remain enforced. No network, decoding, schema or application-handler error is automatically retried.
 
 ## Advanced: reuse an existing AI SDK model
 
@@ -171,3 +171,7 @@ Tests cover the real installed Gateway SDK with injected HTTP and an actual loca
 - [Evaluation V4 contract](https://github.com/vercel/ai/tree/main/packages/provider/src/evaluation-model/v4)
 - [TypeSafe System One API](https://docs.typesafe.ai/api)
 - [TypeSafe confidence semantics](https://docs.typesafe.ai/confidence)
+
+## HTTP and replay (alpha.4)
+
+Questions-owned transports now use ofetch with the shared `retry`/`hooks` configuration. The arbitrary AI SDK model bridge retains ownership boundaries and adds no HTTP retry policy of its own. `q.run(schema)` exposes validated output/evidence plus explicit live replay; `q.prepare(schema)` captures a reusable request without inference. See [HTTP and replay](http-retry-replay.md) for exact semantics and the ofetch feature evaluation.
