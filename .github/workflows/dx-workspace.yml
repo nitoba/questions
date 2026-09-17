@@ -1,4 +1,4 @@
-name: Validate semantic DX contracts
+name: Validate semantic deadline regressions
 on:
   push:
     branches: [feat/semantic-dx]
@@ -20,54 +20,39 @@ jobs:
         with:
           bun-version: "1.4.2"
       - run: bun install --frozen-lockfile
-      - name: Verify and apply reviewed test and documentation patches
+      - name: Verify and apply context regression patch
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           python3 - <<'PY'
           import base64, hashlib, json, os, pathlib, urllib.request
-          shas = [
-            'd6286e7d9d098a7bfb38726b76d422ccc8c17397',
-            '2a0e693a88a1c712f5cd2d50f3c9f1d6b2b9200d',
-            '5f5bcf4c5e6ccb8051c54cabad8296c83c0d27db',
-            '32e7c37620ca52ce2582473339d1df10a3bea424',
-            '3ef01f40a418d51170a7f1ee9ff718dbf16d4e91',
-            '15763bbcf3bdf5d6b29d0c150e19f49c13a84d22',
-            '2ee0ad5b1380881b6944fd089fc3a1975eb0b0db',
-            'd2e12e3d4b0e78ce6983c059eb47fb9f4b1f4ce4',
-          ]
-          parts = []
-          for sha in shas:
-            req = urllib.request.Request('https://api.github.com/repos/nitoba/questions/git/blobs/' + sha,
-              headers={'Authorization': 'Bearer ' + os.environ['GH_TOKEN'], 'Accept': 'application/vnd.github+json'})
-            with urllib.request.urlopen(req) as response:
-              content = base64.b64decode(json.load(response)['content'])
-            assert hashlib.sha1(f'blob {len(content)}\0'.encode() + content).hexdigest() == sha
-            parts.append(content)
-          pathlib.Path('/tmp/semantic-contracts.patch').write_bytes(b''.join(parts))
+          sha = '55eb20f8af527e732b51fcf338a38e29d51bc6d5'
+          req = urllib.request.Request('https://api.github.com/repos/nitoba/questions/git/blobs/' + sha,
+            headers={'Authorization': 'Bearer ' + os.environ['GH_TOKEN'], 'Accept': 'application/vnd.github+json'})
+          with urllib.request.urlopen(req) as response:
+            content = base64.b64decode(json.load(response)['content'])
+          assert hashlib.sha1(f'blob {len(content)}\0'.encode() + content).hexdigest() == sha
+          pathlib.Path('/tmp/semantic-regression.patch').write_bytes(content)
           PY
-          git apply --check /tmp/semantic-contracts.patch
-          git apply /tmp/semantic-contracts.patch
-      - name: Validate types, lint, format, 217 tests and installed consumers
+          git apply --check /tmp/semantic-regression.patch
+          git apply /tmp/semantic-regression.patch
+      - name: Validate all contracts and installed consumers
         run: |
           set -o pipefail
-          bun run format
-          bun run check 2>&1 | tee /tmp/semantic-contracts.log
-          node --no-warnings --experimental-strip-types --experimental-loader ./scripts/node-test-loader.mjs --test --test-timeout=5000 tests/*.test.ts 2>&1 | tee /tmp/semantic-contracts-node.log
-      - name: Commit validated tests and documentation separately
+          bun run check 2>&1 | tee /tmp/semantic-regression.log
+          node --no-warnings --experimental-strip-types --experimental-loader ./scripts/node-test-loader.mjs --test --test-timeout=5000 tests/*.test.ts 2>&1 | tee /tmp/semantic-regression-node.log
+      - name: Commit validated regressions
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add tests
-          git commit -m 'test: cover semantic lifecycle, duration grammar and schema paths'
-          git add AGENTS.md CHANGELOG.md README.md docs examples
-          git commit -m 'docs: explain semantic clients, duration inputs and field diagnostics'
+          git add src/questions.ts tests/lifecycle.test.ts
+          git commit -m 'fix: validate context and deadline before counting provider dispatch'
           git push origin HEAD:feat/semantic-dx
           git rev-parse HEAD >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: semantic-contracts-validation
-          path: /tmp/semantic-contracts*.log
+          name: semantic-regression-validation
+          path: /tmp/semantic-regression*.log
           if-no-files-found: ignore
           retention-days: 1
