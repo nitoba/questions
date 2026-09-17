@@ -1,6 +1,10 @@
 # Changelog
 
-## Unreleased — generative examples and README
+## 0.1.0-rc.1
+
+- Promote the tested alpha API to the first release candidate without adding new runtime features.
+- Prepare the scoped package for public npm publication under the `next` dist-tag, with an exact-version manual release workflow and a local `npm publish --dry-run` command.
+- Add npm release metadata, package discovery fields, a prepublish validation gate and a documented first-publish/Trusted-Publishing migration procedure.
 
 - Extend the shared example selector to Google, Anthropic, OpenAI and Gateway language models; keep native evaluation available.
 - Reuse that selector across native questions, Zod, streams, explicit replay comparisons and the fulfillment desk.
@@ -49,4 +53,4 @@
 - Harden shared HTTP cancellation/cleanup, credential-safe configuration and bounded response reads.
 - Add runtime, compile-only, real localhost SDK and independently installed tarball coverage; document provider setup and protocol differences.
 
-This implementation does not publish the package or run paid live-model evaluations.
+Repository changes do not publish the package automatically, and release validation does not run paid live-model evaluations.

@@ -11,9 +11,11 @@ readable deadlines, explicit retries, replay and observability as your applicati
 No Effect dependency, service container or alternative execution runtime. Independently inspired
 by [effect-questions](https://github.com/saiashirwad/effect-questions).
 
-> **Alpha:** this README describes the `0.1.0-alpha.6` API. See the [changelog](CHANGELOG.md)
-> and [migration guide](docs/migration.md) before upgrading. Decisions are finite classifications,
-> not arbitrary JSON generation, factual guarantees or authorization to execute business actions.
+> **Release candidate:** this README describes the `0.1.0-rc.1` API. The public surface is now
+> frozen for the 0.1.0 release candidate; fixes and compatibility validation take priority over new
+> features. Decisions are finite classifications, not arbitrary JSON generation, factual guarantees
+> or authorization to execute business actions. See the [changelog](CHANGELOG.md) and
+> [migration guide](docs/migration.md) before upgrading.
 
 [Quick start](#quick-start) · [Providers](#providers) · [Generative models](#generative-language-models) · [Schemas](#zod-schemas) ·
 [Streams](#web-streams) · [Tutorials](examples/README.md) · [Documentation](#documentation)
@@ -54,6 +56,18 @@ The [learning path](examples/README.md) includes native questions, Zod, non-stre
 streams and a complete application. [Environment setup](examples/.env.example) documents the
 available provider settings. Live commands may incur charges; there is no automatic fake-model
 fallback or command that runs every paid tutorial.
+
+### Install the release candidate from npm
+
+After `0.1.0-rc.1` is published, install the prerelease explicitly through the `next` dist-tag:
+
+```sh
+bun add '@nitoba/questions@next' 'zod@^4.0.0'
+```
+
+Do not rely on `latest` for the release candidate. Optional Gateway and generative integrations
+have additional peers described in [Providers](#providers). The package is public but live model
+calls still require your own provider credentials and may incur charges.
 
 ### Use a local build in another project
 

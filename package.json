@@ -2,28 +2,28 @@
   "name": "@nitoba/questions",
   "version": "0.1.0-rc.1",
   "description": "Typed semantic decisions for TypeScript with Zod, AI SDK providers, and native Web Streams.",
-  "license": "MIT",
-  "author": "Bruno Alves",
+  "keywords": [
+    "ai",
+    "ai-sdk",
+    "classification",
+    "decision",
+    "jev",
+    "llm",
+    "structured-output",
+    "typescript",
+    "web-streams",
+    "zod"
+  ],
   "homepage": "https://github.com/nitoba/questions#readme",
   "bugs": {
     "url": "https://github.com/nitoba/questions/issues"
   },
+  "license": "MIT",
+  "author": "Bruno Alves",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/nitoba/questions.git"
   },
-  "keywords": [
-    "ai",
-    "llm",
-    "typescript",
-    "zod",
-    "structured-output",
-    "classification",
-    "decision",
-    "web-streams",
-    "ai-sdk",
-    "jev"
-  ],
   "files": [
     "dist",
     "src",
@@ -76,6 +76,11 @@
       "types": "./dist/providers/generative.d.ts",
       "import": "./dist/providers/generative.js"
     }
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/",
+    "tag": "next"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
@@ -130,11 +135,6 @@
     "@ai-sdk/provider": {
       "optional": true
     }
-  },
-  "publishConfig": {
-    "access": "public",
-    "registry": "https://registry.npmjs.org/",
-    "tag": "next"
   },
   "engines": {
     "node": ">=22"
