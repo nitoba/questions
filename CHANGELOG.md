@@ -59,4 +59,4 @@
 - Harden shared HTTP cancellation/cleanup, credential-safe configuration and bounded response reads.
 - Add runtime, compile-only, real localhost SDK and independently installed tarball coverage; document provider setup and protocol differences.
 
-Repository changes do not publish the package automatically, and release validation does not run paid live-model evaluations.
+Ordinary repository changes do not publish the package. Only pushing a validated release tag triggers npm publication, and release validation does not run paid live-model evaluations.
