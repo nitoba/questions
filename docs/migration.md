@@ -2,24 +2,24 @@
 
 This is a semantic redesign, not a source-compatible drop-in replacement.
 
-| Effect version | Native Questions |
-| --- | --- |
-| `Questions.about(state)` with provided Layer | `const questions = Questions.create({ model }); questions.about(state)` |
-| `yield* q.is(...)` | `await q.is(...)` |
-| Effect-valued live context | `questions.about(({ signal }) => readCurrentContext(signal))` |
-| A reusable Effect | A function returning a fresh Promise |
-| `Effect.catchTag("UncertainDecision", ...)` | `try/catch` and `error instanceof UncertainDecision` |
-| `Question.choice` / `Question.score` / `Question.boolean` | Same concepts; normalized immutable definitions, no Effect Schema codecs |
-| `Stream.fromIterable(items)` | `Streams.from(items)` |
-| `Stream.mapEffect(f, { concurrency })` | `.map(f, { concurrency })`; callback receives `{ signal, index }` |
-| `Stream.filterEffect(predicate)` | `.filter(predicate)`; sequential, or concurrent `.map` followed by `.filter` |
-| `Stream.scan(seed, reducer)` | `.scan(() => seed, reducer)`; no seed emission |
-| `Stream.mapAccumEffect(seed, step)` | `.mapAccum(() => seed, step)` |
-| `Stream.takeUntil(predicate)` | `.takeUntil(predicate)`, inclusive |
-| `Stream.runForEach(effect)` | `.forEach(callback, { signal })` |
-| Effect timeout / interruption | Provider `timeoutMs`, or an AbortSignal passed to a terminal/operation |
-| Curried dual Answer/Decision helpers | Ordinary data-first functions |
-| Effect services / Layers | Explicit `QuestionModel` injection |
+| Effect version                                            | Native Questions                                                             |
+| --------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| `Questions.about(state)` with provided Layer              | `const questions = Questions.create({ model }); questions.about(state)`      |
+| `yield* q.is(...)`                                        | `await q.is(...)`                                                            |
+| Effect-valued live context                                | `questions.about(({ signal }) => readCurrentContext(signal))`                |
+| A reusable Effect                                         | A function returning a fresh Promise                                         |
+| `Effect.catchTag("UncertainDecision", ...)`               | `try/catch` and `error instanceof UncertainDecision`                         |
+| `Question.choice` / `Question.score` / `Question.boolean` | Same concepts; normalized immutable definitions, no Effect Schema codecs     |
+| `Stream.fromIterable(items)`                              | `Streams.from(items)`                                                        |
+| `Stream.mapEffect(f, { concurrency })`                    | `.map(f, { concurrency })`; callback receives `{ signal, index }`            |
+| `Stream.filterEffect(predicate)`                          | `.filter(predicate)`; sequential, or concurrent `.map` followed by `.filter` |
+| `Stream.scan(seed, reducer)`                              | `.scan(() => seed, reducer)`; no seed emission                               |
+| `Stream.mapAccumEffect(seed, step)`                       | `.mapAccum(() => seed, step)`                                                |
+| `Stream.takeUntil(predicate)`                             | `.takeUntil(predicate)`, inclusive                                           |
+| `Stream.runForEach(effect)`                               | `.forEach(callback, { signal })`                                             |
+| Effect timeout / interruption                             | Provider `timeoutMs`, or an AbortSignal passed to a terminal/operation       |
+| Curried dual Answer/Decision helpers                      | Ordinary data-first functions                                                |
+| Effect services / Layers                                  | Explicit `QuestionModel` injection                                           |
 
 `each` is still one request for the collection, not parallel per-item calls. `choose` still returns an original candidate, and `branch` still runs only one lazy handler. Add explicit fallback candidates and handle confidence rejection at the application boundary.
 

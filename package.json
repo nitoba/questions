@@ -2,18 +2,20 @@
   "name": "@nitoba/questions",
   "version": "0.1.0-alpha.1",
   "description": "Typed semantic decisions and native Web Streams, without Effect.",
-  "type": "module",
   "license": "MIT",
   "author": "Bruno Alves",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/nitoba/questions.git"
   },
+  "files": [
+    "dist",
+    "src",
+    "README.md",
+    "LICENSE"
+  ],
+  "type": "module",
   "sideEffects": false,
-  "engines": {
-    "node": ">=22"
-  },
-  "packageManager": "bun@1.4.2",
   "types": "./dist/index.d.ts",
   "exports": {
     ".": {
@@ -30,7 +32,6 @@
     },
     "./package.json": "./package.json"
   },
-  "files": ["dist", "src", "README.md", "LICENSE"],
   "scripts": {
     "typecheck": "tsc --noEmit",
     "test": "bun test",
@@ -49,5 +50,9 @@
     "publint": "0.3.24",
     "tsdown": "0.23.0",
     "typescript": "7.0.2"
-  }
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "packageManager": "bun@1.4.2"
 }

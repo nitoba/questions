@@ -12,20 +12,34 @@ const transcript = [
 ];
 const batch = {
   stage: Question.choice("What is the customer's situation after the latest message?", {
-    open: "Still investigating", escalated: "Customer asks for a manager or threatens to leave", resolved: "Customer confirms resolution",
+    open: "Still investigating",
+    escalated: "Customer asks for a manager or threatens to leave",
+    resolved: "Customer confirms resolution",
   }),
   temperature: Question.score("How is the customer feeling?", ["Calm", "Frustrated", "Very angry"]),
 };
 type Stage = Values<typeof batch>["stage"];
 
 const events = Streams.from(transcript)
-  .scan(() => [] as typeof transcript, (log, message) => [...log, message])
+  .scan(
+    () => [] as typeof transcript,
+    (log, message) => [...log, message],
+  )
   .filter((log) => log.at(-1)?.from === "customer")
   .map((log, { signal }) => questions.about({ transcript: log }).ask(batch, { signal }))
-  .mapAccum(() => "open" as Stage, (previous, observed) => {
-    const stage = previous === "escalated" && observed.stage === "open" ? previous : observed.stage;
-    return [stage, [{ ...observed, stage, changed: stage !== previous }]] as const;
-  })
+  .mapAccum(
+    () => "open" as Stage,
+    (previous, observed) => {
+      const stage =
+        previous === "escalated" && observed.stage === "open" ? previous : observed.stage;
+      return [stage, [{ ...observed, stage, changed: stage !== previous }]] as const;
+    },
+  )
   .takeUntil((event) => event.stage === "resolved");
 
-await events.forEach((event) => { console.log(event); }, { signal: AbortSignal.timeout(60_000) });
+await events.forEach(
+  (event) => {
+    console.log(event);
+  },
+  { signal: AbortSignal.timeout(60_000) },
+);

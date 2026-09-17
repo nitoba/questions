@@ -7,7 +7,9 @@ import type { Factory, Source } from "./internal/stream-runtime.ts";
 
 export type { Source } from "./internal/stream-runtime.ts";
 /** Context associated with one input item; index always refers to this operator's input order. */
-export interface ItemContext extends CallContext { readonly index: number }
+export interface ItemContext extends CallContext {
+  readonly index: number;
+}
 /** Concurrency bounds running tasks plus completed outputs waiting for consumption. */
 export interface MapOptions {
   readonly concurrency?: number;
@@ -15,7 +17,9 @@ export interface MapOptions {
   readonly ordered?: boolean;
 }
 /** Materialization options. maxItems rejects instead of silently truncating a result. */
-export interface CollectOptions extends RunOptions { readonly maxItems?: number }
+export interface CollectOptions extends RunOptions {
+  readonly maxItems?: number;
+}
 
 /**
  * A lazy description built on native Web Streams. Not a subclass of ReadableStream.
@@ -24,14 +28,18 @@ export interface CollectOptions extends RunOptions { readonly maxItems?: number 
  */
 export class Stream<T> implements AsyncIterable<T> {
   readonly #factory: Factory<T>;
-  constructor(factory: Factory<T>) { this.#factory = factory; }
+  constructor(factory: Factory<T>) {
+    this.#factory = factory;
+  }
 
   /**
    * Open a fresh native stream without pulling any items. Canceling its reader aborts the run.
    * @example
    * await pipeline.toReadable({ signal }).pipeTo(destination);
    */
-  toReadable(options: RunOptions = {}): ReadableStream<T> { return owned(this.#factory, options.signal); }
+  toReadable(options: RunOptions = {}): ReadableStream<T> {
+    return owned(this.#factory, options.signal);
+  }
 
   /**
    * Transform items with bounded concurrency. Defaults to sequential, ordered evaluation.
@@ -42,13 +50,20 @@ export class Stream<T> implements AsyncIterable<T> {
    *   { concurrency: 4 },
    * );
    */
-  map<R>(mapper: (value: T, context: ItemContext) => Awaitable<R>, options: MapOptions = {}): Stream<R> {
+  map<R>(
+    mapper: (value: T, context: ItemContext) => Awaitable<R>,
+    options: MapOptions = {},
+  ): Stream<R> {
     const capacity = integer(options.concurrency ?? 1, 1, "concurrency");
-    return new Stream((signal) => concurrent(
-      (parent) => this.toReadable({ signal: parent }),
-      (value, itemSignal, index) => mapper(value, { signal: itemSignal, index }),
-      capacity, options.ordered ?? true, signal,
-    ));
+    return new Stream((signal) =>
+      concurrent(
+        (parent) => this.toReadable({ signal: parent }),
+        (value, itemSignal, index) => mapper(value, { signal: itemSignal, index }),
+        capacity,
+        options.ordered ?? true,
+        signal,
+      ),
+    );
   }
 
   /** Narrow with a synchronous type guard, preserving the narrowed element type. */
@@ -60,7 +75,8 @@ export class Stream<T> implements AsyncIterable<T> {
       let index = 0;
       return new TransformStream<T, T>({
         async transform(value, controller) {
-          if (await abortable(predicate(value, { signal, index: index++ }), signal)) controller.enqueue(value);
+          if (await abortable(predicate(value, { signal, index: index++ }), signal))
+            controller.enqueue(value);
         },
       });
     });
@@ -68,14 +84,20 @@ export class Stream<T> implements AsyncIterable<T> {
 
   /** Observe each item sequentially without changing its value. Callback failures stop the stream. */
   tap(effect: (value: T, context: ItemContext) => Awaitable<unknown>): Stream<T> {
-    return this.map(async (value, context) => { await effect(value, context); return value; });
+    return this.map(async (value, context) => {
+      await effect(value, context);
+      return value;
+    });
   }
 
   /**
    * Emit accumulated state after every input. A seed factory isolates mutable state between runs.
    * The seed itself is not emitted. Return immutable snapshots when retaining earlier outputs.
    */
-  scan<S>(seed: () => S, reducer: (state: S, value: T, context: ItemContext) => Awaitable<S>): Stream<S> {
+  scan<S>(
+    seed: () => S,
+    reducer: (state: S, value: T, context: ItemContext) => Awaitable<S>,
+  ): Stream<S> {
     return this.through((signal) => {
       let state = seed();
       let index = 0;
@@ -92,7 +114,8 @@ export class Stream<T> implements AsyncIterable<T> {
    * Advance local state and emit zero or more events per item. State is never shared across runs.
    * Useful for sticky escalation and other state machines over semantic decisions.
    */
-  mapAccum<S, R>(seed: () => S,
+  mapAccum<S, R>(
+    seed: () => S,
     step: (state: S, value: T, context: ItemContext) => Awaitable<readonly [S, readonly R[]]>,
   ): Stream<R> {
     return this.through((signal) => {
@@ -100,7 +123,10 @@ export class Stream<T> implements AsyncIterable<T> {
       let index = 0;
       return new TransformStream<T, R>({
         async transform(value, controller) {
-          const [next, events] = await abortable(step(state, value, { signal, index: index++ }), signal);
+          const [next, events] = await abortable(
+            step(state, value, { signal, index: index++ }),
+            signal,
+          );
           state = next;
           for (const event of events) controller.enqueue(event);
         },
@@ -116,9 +142,14 @@ export class Stream<T> implements AsyncIterable<T> {
       return new TransformStream<T, readonly T[]>({
         transform(value, controller) {
           pending.push(value);
-          if (pending.length === size) { controller.enqueue(pending); pending = []; }
+          if (pending.length === size) {
+            controller.enqueue(pending);
+            pending = [];
+          }
         },
-        flush(controller) { if (pending.length > 0) controller.enqueue(pending); },
+        flush(controller) {
+          if (pending.length > 0) controller.enqueue(pending);
+        },
       });
     });
   }
@@ -136,10 +167,13 @@ export class Stream<T> implements AsyncIterable<T> {
 
   /** Stop before the first rejected item, excluding it from the output. */
   takeWhile(predicate: (value: T, context: ItemContext) => Awaitable<boolean>): Stream<T> {
-    return this.#until(async (value, context) => !await predicate(value, context), false);
+    return this.#until(async (value, context) => !(await predicate(value, context)), false);
   }
 
-  #until(predicate: (value: T, context: ItemContext) => Awaitable<boolean>, inclusive: boolean): Stream<T> {
+  #until(
+    predicate: (value: T, context: ItemContext) => Awaitable<boolean>,
+    inclusive: boolean,
+  ): Stream<T> {
     return new Stream((signal) => {
       const reader = this.toReadable({ signal }).getReader();
       let index = 0;
@@ -147,18 +181,35 @@ export class Stream<T> implements AsyncIterable<T> {
       const stop = async (reason?: unknown) => {
         if (ended) return;
         ended = true;
-        try { await reader.cancel(reason); } finally { reader.releaseLock(); }
+        try {
+          await reader.cancel(reason);
+        } finally {
+          reader.releaseLock();
+        }
       };
-      return new ReadableStream<T>({
-        async pull(controller) {
-          const next = await reader.read();
-          if (next.done) { await stop(); controller.close(); return; }
-          const matches = await abortable(predicate(next.value, { signal, index: index++ }), signal);
-          if (!matches || inclusive) controller.enqueue(next.value);
-          if (matches) { await stop(); controller.close(); }
+      return new ReadableStream<T>(
+        {
+          async pull(controller) {
+            const next = await reader.read();
+            if (next.done) {
+              await stop();
+              controller.close();
+              return;
+            }
+            const matches = await abortable(
+              predicate(next.value, { signal, index: index++ }),
+              signal,
+            );
+            if (!matches || inclusive) controller.enqueue(next.value);
+            if (matches) {
+              await stop();
+              controller.close();
+            }
+          },
+          cancel: stop,
         },
-        cancel: stop,
-      }, { highWaterMark: 0 });
+        { highWaterMark: 0 },
+      );
     });
   }
 
@@ -171,7 +222,9 @@ export class Stream<T> implements AsyncIterable<T> {
    * }));
    */
   through<R>(factory: (signal: AbortSignal) => TransformStream<T, R>): Stream<R> {
-    return new Stream((signal) => this.toReadable({ signal }).pipeThrough(factory(signal), { signal }));
+    return new Stream((signal) =>
+      this.toReadable({ signal }).pipeThrough(factory(signal), { signal }),
+    );
   }
 
   /** Materialize a finite stream. Supply maxItems when the upstream size is not trusted. */
@@ -188,11 +241,21 @@ export class Stream<T> implements AsyncIterable<T> {
   }
 
   /** Consume sequentially; errors in the callback cancel the source and preserve the original error. */
-  async forEach(callback: (value: T, context: ItemContext) => Awaitable<unknown>, options: RunOptions = {}): Promise<void> {
+  async forEach(
+    callback: (value: T, context: ItemContext) => Awaitable<unknown>,
+    options: RunOptions = {},
+  ): Promise<void> {
     const reader = this.map(callback).toReadable(options).getReader();
-    try { while (!(await reader.read()).done) { /* Pull drives bounded evaluation. */ } }
-    finally {
-      try { await reader.cancel(); } catch { /* Preserve the original error. */ }
+    try {
+      while (!(await reader.read()).done) {
+        /* Pull drives bounded evaluation. */
+      }
+    } finally {
+      try {
+        await reader.cancel();
+      } catch {
+        /* Preserve the original error. */
+      }
       reader.releaseLock();
     }
   }
@@ -212,7 +275,11 @@ export class Stream<T> implements AsyncIterable<T> {
         yield next.value;
       }
     } finally {
-      try { await reader.cancel(); } finally { reader.releaseLock(); }
+      try {
+        await reader.cancel();
+      } finally {
+        reader.releaseLock();
+      }
     }
   }
 }
@@ -227,18 +294,24 @@ export function from<T>(source: Source<T>): Stream<T> {
   const iterators = new WeakSet<object>();
   return defer(() => {
     if (isReadable(source)) {
-      if (nativeUsed) throw new ValidationError("single-use source already consumed; use Streams.defer", "stream");
+      if (nativeUsed)
+        throw new ValidationError(
+          "single-use source already consumed; use Streams.defer",
+          "stream",
+        );
       nativeUsed = true;
       return source;
     }
     if (typeof (source as AsyncIterable<T>)[Symbol.asyncIterator] === "function") {
       const iterator = (source as AsyncIterable<T>)[Symbol.asyncIterator]();
-      if (iterators.has(iterator)) throw new ValidationError("iterator already consumed; use Streams.defer", "stream");
+      if (iterators.has(iterator))
+        throw new ValidationError("iterator already consumed; use Streams.defer", "stream");
       iterators.add(iterator);
       return { [Symbol.asyncIterator]: () => iterator };
     }
     const iterator = (source as Iterable<T>)[Symbol.iterator]();
-    if (iterators.has(iterator)) throw new ValidationError("iterator already consumed; use Streams.defer", "stream");
+    if (iterators.has(iterator))
+      throw new ValidationError("iterator already consumed; use Streams.defer", "stream");
     iterators.add(iterator);
     return { [Symbol.iterator]: () => iterator };
   });
@@ -263,34 +336,48 @@ export function defer<T>(factory: (context: CallContext) => Awaitable<Source<T>>
       const current = reader;
       reader = undefined;
       if (current) {
-        try { await current.cancel(reason); } catch { /* Preserve the source/consumer error. */ }
-        finally { current.releaseLock(); }
+        try {
+          await current.cancel(reason);
+        } catch {
+          /* Preserve the source/consumer error. */
+        } finally {
+          current.releaseLock();
+        }
       }
       // A late-acquired source is canceled by the acquisition continuation below.
     };
-    return new ReadableStream<T>({
-      async pull(controller) {
-        try {
-          acquiring ??= Promise.resolve().then(() => {
-            signal.throwIfAborted();
-            return factory({ signal });
-          }).then(async (source) => {
-            reader = sourceStream(source, signal).getReader();
-            if (ended) await stop(signal.reason);
-          });
-          await abortable(acquiring, signal);
-          if (ended) return;
-          const next = await reader!.read();
-          if (ended) return;
-          if (next.done) { ended = true; reader!.releaseLock(); reader = undefined; controller.close(); }
-          else controller.enqueue(next.value);
-        } catch (error) {
-          // cancel() is not called by the platform after a stream errors. Release explicitly.
-          await stop(error);
-          throw error;
-        }
+    return new ReadableStream<T>(
+      {
+        async pull(controller) {
+          try {
+            acquiring ??= Promise.resolve()
+              .then(() => {
+                signal.throwIfAborted();
+                return factory({ signal });
+              })
+              .then(async (source) => {
+                reader = sourceStream(source, signal).getReader();
+                if (ended) await stop(signal.reason);
+              });
+            await abortable(acquiring, signal);
+            if (ended) return;
+            const next = await reader!.read();
+            if (ended) return;
+            if (next.done) {
+              ended = true;
+              reader!.releaseLock();
+              reader = undefined;
+              controller.close();
+            } else controller.enqueue(next.value);
+          } catch (error) {
+            // cancel() is not called by the platform after a stream errors. Release explicitly.
+            await stop(error);
+            throw error;
+          }
+        },
+        cancel: stop,
       },
-      cancel: stop,
-    }, { highWaterMark: 0 });
+      { highWaterMark: 0 },
+    );
   });
 }

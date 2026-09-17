@@ -25,8 +25,13 @@ export type AnyQuestion = BooleanQuestion | ChoiceQuestion | ScoreQuestion;
 /** Strings are shorthand for boolean questions. Keys are preserved in all results. */
 export type Batch = Readonly<Record<string, string | AnyQuestion>>;
 /** Infer the plain value of a question. */
-export type Value<Q> = Q extends string | BooleanQuestion ? boolean
-  : Q extends ChoiceQuestion<infer K> ? K : Q extends ScoreQuestion ? number : never;
+export type Value<Q> = Q extends string | BooleanQuestion
+  ? boolean
+  : Q extends ChoiceQuestion<infer K>
+    ? K
+    : Q extends ScoreQuestion
+      ? number
+      : never;
 /** Infer every named result in a batch without widening choice literals. */
 export type Values<B extends Batch> = { readonly [K in keyof B]: Value<B[K]> };
 
@@ -41,14 +46,21 @@ function description(value: unknown, path: string): Description {
  *   true: "No production work can continue", false: "Work remains possible",
  * });
  */
-export function boolean(instructions: string, criteria?: BooleanQuestion["criteria"]): BooleanQuestion {
+export function boolean(
+  instructions: string,
+  criteria?: BooleanQuestion["criteria"],
+): BooleanQuestion {
   text(instructions, "instructions");
   if (criteria === undefined) return Object.freeze({ type: "boolean", instructions });
   record(criteria, "criteria");
-  return Object.freeze({ type: "boolean", instructions, criteria: Object.freeze({
-    true: description(criteria.true, "criteria.true"),
-    false: description(criteria.false, "criteria.false"),
-  }) });
+  return Object.freeze({
+    type: "boolean",
+    instructions,
+    criteria: Object.freeze({
+      true: description(criteria.true, "criteria.true"),
+      false: description(criteria.false, "criteria.false"),
+    }),
+  });
 }
 
 /**
@@ -58,14 +70,16 @@ export function boolean(instructions: string, criteria?: BooleanQuestion["criter
  * const team = Question.choice("Which team?", { billing: "Charges", support: "Bugs" });
  */
 export function choice<const C extends Readonly<Record<string, Description>>>(
-  instructions: string, criteria: C,
+  instructions: string,
+  criteria: C,
 ): ChoiceQuestion<keyof C & string> {
   text(instructions, "instructions");
   const entries = Object.entries(record(criteria, "criteria"));
-  if (entries.length < 2) throw new ValidationError("at least two options are required", "criteria");
-  const snapshot = Object.freeze(Object.fromEntries(entries.map(([key, value]) => [
-    key, description(value, `criteria.${key}`),
-  ]))) as Readonly<Record<keyof C & string, Description>>;
+  if (entries.length < 2)
+    throw new ValidationError("at least two options are required", "criteria");
+  const snapshot = Object.freeze(
+    Object.fromEntries(entries.map(([key, value]) => [key, description(value, `criteria.${key}`)])),
+  ) as Readonly<Record<keyof C & string, Description>>;
   return Object.freeze({ type: "choice", instructions, criteria: snapshot });
 }
 
@@ -74,27 +88,41 @@ export function choice<const C extends Readonly<Record<string, Description>>>(
  * @example
  * const urgency = Question.score("How urgent?", ["Low", "Medium", "High"]);
  */
-export function score(instructions: string, levels: readonly [string, string, ...string[]]): ScoreQuestion {
+export function score(
+  instructions: string,
+  levels: readonly [string, string, ...string[]],
+): ScoreQuestion {
   text(instructions, "instructions");
   if (!Array.isArray(levels) || levels.length < 2) {
     throw new ValidationError("at least two levels are required", "criteria");
   }
-  const criteria = Object.freeze(levels.map((level, index) => text(level, `criteria.${index}`))) as unknown as ScoreQuestion["criteria"];
+  const criteria = Object.freeze(
+    levels.map((level, index) => text(level, `criteria.${index}`)),
+  ) as unknown as ScoreQuestion["criteria"];
   return Object.freeze({ type: "score", instructions, criteria });
 }
 
 /** @internal Normalize and snapshot question definitions before provider invocation. */
 export function normalize(batch: Batch): Readonly<Record<string, AnyQuestion>> {
   const entries = Object.entries(record(batch, "questions"));
-  if (entries.length === 0) throw new ValidationError("at least one question is required", "questions");
-  return Object.freeze(Object.fromEntries(entries.map(([key, input]) => {
-    if (typeof input === "string") return [key, boolean(input)];
-    const defined = record(input, `questions.${key}`) as unknown as AnyQuestion;
-    switch (defined.type) {
-      case "boolean": return [key, boolean(defined.instructions, defined.criteria)];
-      case "choice": return [key, choice(defined.instructions, defined.criteria)];
-      case "score": return [key, score(defined.instructions, defined.criteria)];
-      default: throw new ValidationError("unknown question type", `questions.${key}.type`);
-    }
-  })));
+  if (entries.length === 0)
+    throw new ValidationError("at least one question is required", "questions");
+  return Object.freeze(
+    Object.fromEntries(
+      entries.map(([key, input]) => {
+        if (typeof input === "string") return [key, boolean(input)];
+        const defined = record(input, `questions.${key}`) as unknown as AnyQuestion;
+        switch (defined.type) {
+          case "boolean":
+            return [key, boolean(defined.instructions, defined.criteria)];
+          case "choice":
+            return [key, choice(defined.instructions, defined.criteria)];
+          case "score":
+            return [key, score(defined.instructions, defined.criteria)];
+          default:
+            throw new ValidationError("unknown question type", `questions.${key}.type`);
+        }
+      }),
+    ),
+  );
 }

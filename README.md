@@ -63,10 +63,14 @@ One `ask` is **one provider evaluation**, regardless of the number of independen
 import { UncertainDecision } from "@nitoba/questions";
 
 try {
-  const destination = await q.branch("What kind of help is needed?", {
-    "Invoice or payment problem": () => ({ queue: "billing" }),
-    "Bug, outage or deployment failure": async () => ({ queue: "platform" }),
-  }, { confidence: 0.6 });
+  const destination = await q.branch(
+    "What kind of help is needed?",
+    {
+      "Invoice or payment problem": () => ({ queue: "billing" }),
+      "Bug, outage or deployment failure": async () => ({ queue: "platform" }),
+    },
+    { confidence: 0.6 },
+  );
   console.log(destination);
 } catch (error) {
   if (!(error instanceof UncertainDecision)) throw error;
@@ -100,7 +104,8 @@ const investigation = questions.about(() => ({ findings }));
 findings = [...findings, "The rotated credential lacks deploy:write"];
 const settled = await investigation.is("Do the findings establish a likely cause?");
 
-const urgency = await questions.each(["API down", "Please change the icon"])
+const urgency = await questions
+  .each(["API down", "Please change the icon"])
   .score("How urgent?", ["Low", "Medium", "High"]);
 ```
 
@@ -115,17 +120,25 @@ import { Streams } from "@nitoba/questions";
 
 const tickets = ["API unavailable", "Billing question", "Deployment failed"];
 const pipeline = Streams.from(tickets)
-  .map(async (ticket, { signal, index }) => ({
-    index,
-    ticket,
-    urgent: await questions.about(ticket).is("Does this require urgent attention?", { signal }),
-  }), { concurrency: 4 })
+  .map(
+    async (ticket, { signal, index }) => ({
+      index,
+      ticket,
+      urgent: await questions.about(ticket).is("Does this require urgent attention?", { signal }),
+    }),
+    { concurrency: 4 },
+  )
   .filter((item) => item.urgent)
   .take(10);
 
-await pipeline.forEach((item) => { console.log(item); }, {
-  signal: AbortSignal.timeout(30_000),
-});
+await pipeline.forEach(
+  (item) => {
+    console.log(item);
+  },
+  {
+    signal: AbortSignal.timeout(30_000),
+  },
+);
 ```
 
 `map` is sequential and ordered by default. `{ concurrency: 4 }` bounds **running tasks plus completed outputs waiting for the consumer**, not merely active requests. `{ ordered: false }` emits in completion order. A later failed task is not hidden behind an earlier slow task.
@@ -139,11 +152,14 @@ For finite materialization, `await pipeline.toArray({ maxItems: 100 })` rejects 
 ## Native APIs remain available
 
 ```ts
-const bytes = pipeline.through(() => new TransformStream({
-  transform(value, controller) {
-    controller.enqueue(new TextEncoder().encode(JSON.stringify(value) + "\n"));
-  },
-}));
+const bytes = pipeline.through(
+  () =>
+    new TransformStream({
+      transform(value, controller) {
+        controller.enqueue(new TextEncoder().encode(JSON.stringify(value) + "\n"));
+      },
+    }),
+);
 
 const readable: ReadableStream<Uint8Array> = bytes.toReadable();
 const response = new Response(readable, {

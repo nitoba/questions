@@ -9,6 +9,31 @@ export { QuestionsClient, BoundQuestions, EachQuestions } from "./questions.ts";
 export { Stream } from "./streams.ts";
 export { ProviderError, ValidationError, TimeoutError, UncertainDecision } from "./errors.ts";
 export type { QuestionModel, EvaluationRequest, Evaluation, Usage } from "./model.ts";
-export type { Batch, Values, AnyQuestion, BooleanQuestion, ChoiceQuestion, ScoreQuestion } from "./question.ts";
-export type { Answers, Evidence, AnyAnswer, BooleanAnswer, ChoiceAnswer, ScoreAnswer, Distribution, Ranked } from "./answer.ts";
-export type { JsonValue, JsonObject, State, StateSource, Description, RunOptions, CallContext, Awaitable } from "./types.ts";
+export type {
+  Batch,
+  Values,
+  AnyQuestion,
+  BooleanQuestion,
+  ChoiceQuestion,
+  ScoreQuestion,
+} from "./question.ts";
+export type {
+  Answers,
+  Evidence,
+  AnyAnswer,
+  BooleanAnswer,
+  ChoiceAnswer,
+  ScoreAnswer,
+  Distribution,
+  Ranked,
+} from "./answer.ts";
+export type {
+  JsonValue,
+  JsonObject,
+  State,
+  StateSource,
+  Description,
+  RunOptions,
+  CallContext,
+  Awaitable,
+} from "./types.ts";

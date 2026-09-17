@@ -13,7 +13,10 @@ export interface QuestionModel {
   evaluate(request: EvaluationRequest, options?: RunOptions): Promise<unknown>;
 }
 /** Normalized token usage, counted once per provider request rather than once per question. */
-export interface Usage { readonly inputTokens: number; readonly outputTokens: number }
+export interface Usage {
+  readonly inputTokens: number;
+  readonly outputTokens: number;
+}
 /** Full typed evidence, including the actual model identifier and token usage. */
 export interface Evaluation<B extends Batch> {
   readonly model: string;

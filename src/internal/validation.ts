@@ -40,7 +40,11 @@ export function integer(value: unknown, minimum: number, path: string): number {
   return number;
 }
 
-export function exactKeys(value: Record<string, unknown>, keys: readonly string[], path: string): void {
+export function exactKeys(
+  value: Record<string, unknown>,
+  keys: readonly string[],
+  path: string,
+): void {
   if (Object.keys(value).length !== keys.length || keys.some((key) => !Object.hasOwn(value, key))) {
     throw new ValidationError("keys do not match the declared questions or options", path);
   }
@@ -62,9 +66,14 @@ export function json(value: unknown, path: string, parents = new Set<object>()):
       }
       return Object.freeze(result);
     }
-    return Object.freeze(Object.fromEntries(
-      Object.entries(record(value, path)).map(([key, entry]) => [key, json(entry, `${path}.${key}`, parents)]),
-    ));
+    return Object.freeze(
+      Object.fromEntries(
+        Object.entries(record(value, path)).map(([key, entry]) => [
+          key,
+          json(entry, `${path}.${key}`, parents),
+        ]),
+      ),
+    );
   } finally {
     parents.delete(value);
   }

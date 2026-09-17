@@ -5,18 +5,30 @@ import { distribution } from "./internal/decode.ts";
 import { finite, probability, record } from "./internal/validation.ts";
 
 /** A constant cost, complete outcome table, or pure cost function. Negative costs are rewards. */
-export type Loss<K extends string> = number | Readonly<Record<K, number>> | ((outcome: K) => number);
+export type Loss<K extends string> =
+  | number
+  | Readonly<Record<K, number>>
+  | ((outcome: K) => number);
 /** Expected loss of one available action. */
-export interface Risk<A extends string> { readonly choice: A; readonly expectedLoss: number }
+export interface Risk<A extends string> {
+  readonly choice: A;
+  readonly expectedLoss: number;
+}
 /** Selected action and all evaluated alternatives, without executing any handler. */
-export interface Selection<A extends string> extends Risk<A> { readonly alternatives: readonly Risk<A>[] }
+export interface Selection<A extends string> extends Risk<A> {
+  readonly alternatives: readonly Risk<A>[];
+}
 
 /**
  * Reject insufficient confidence and preserve the original evidence on success.
  * Boolean confidence is the yes/no margin, not P(true).
  * @throws UncertainDecision when the policy rejects the answer.
  */
-export function requireConfidence<A extends AnyAnswer>(answer: A, minimum: number, question?: string): A {
+export function requireConfidence<A extends AnyAnswer>(
+  answer: A,
+  minimum: number,
+  question?: string,
+): A {
   probability(minimum, "confidence.minimum");
   const observed = confidence(answer);
   if (observed < minimum) throw new UncertainDecision(observed, minimum, question, answer);
@@ -31,10 +43,12 @@ export function requireConfidence<A extends AnyAnswer>(answer: A, minimum: numbe
  * const alternatives = Decision.risks(evidence, costs);
  */
 export function risks<K extends string, const C extends Readonly<Record<string, Loss<NoInfer<K>>>>>(
-  evidence: Distribution<K>, costs: C,
+  evidence: Distribution<K>,
+  costs: C,
 ): Risk<keyof C & string>[] {
   const outcomes = Object.keys(record(evidence.probabilities, "probabilities")) as K[];
-  if (outcomes.length === 0) throw new ValidationError("nonempty evidence is required", "probabilities");
+  if (outcomes.length === 0)
+    throw new ValidationError("nonempty evidence is required", "probabilities");
   distribution(evidence.probabilities, outcomes, "probabilities");
   const actions = Object.entries(record(costs, "costs"));
   if (actions.length === 0) throw new ValidationError("at least one action is required", "costs");
@@ -44,7 +58,8 @@ export function risks<K extends string, const C extends Readonly<Record<string, 
       if (typeof loss === "function") return finite(loss(outcome), `costs.${choice}.${outcome}`);
       if (typeof loss === "number") return finite(loss, `costs.${choice}`);
       const table = record(loss, `costs.${choice}`);
-      if (!Object.hasOwn(table, outcome)) throw new ValidationError("missing outcome cost", `costs.${choice}.${outcome}`);
+      if (!Object.hasOwn(table, outcome))
+        throw new ValidationError("missing outcome cost", `costs.${choice}.${outcome}`);
       return finite(table[outcome], `costs.${choice}.${outcome}`);
     });
     return { choice: choice as keyof C & string, expectedLoss };
@@ -52,9 +67,10 @@ export function risks<K extends string, const C extends Readonly<Record<string, 
 }
 
 /** Choose the lowest expected loss; never invoke application code as a side effect. */
-export function minimizeLoss<K extends string, const C extends Readonly<Record<string, Loss<NoInfer<K>>>>>(
-  evidence: Distribution<K>, costs: C,
-): Selection<keyof C & string> {
+export function minimizeLoss<
+  K extends string,
+  const C extends Readonly<Record<string, Loss<NoInfer<K>>>>,
+>(evidence: Distribution<K>, costs: C): Selection<keyof C & string> {
   const alternatives = risks(evidence, costs);
   let selected = alternatives[0]!;
   for (const risk of alternatives) if (risk.expectedLoss < selected.expectedLoss) selected = risk;
@@ -66,9 +82,13 @@ export function minimizeLoss<K extends string, const C extends Readonly<Record<s
  * The record must contain every choice admitted by the evidence type.
  */
 export function match<K extends string, const H extends Readonly<Record<K, () => unknown>>>(
-  evidence: { readonly choice: K }, handlers: H,
+  evidence: { readonly choice: K },
+  handlers: H,
 ): ReturnType<H[K]> {
-  if (!Object.hasOwn(handlers, evidence.choice) || typeof handlers[evidence.choice] !== "function") {
+  if (
+    !Object.hasOwn(handlers, evidence.choice) ||
+    typeof handlers[evidence.choice] !== "function"
+  ) {
     throw new ValidationError("selected handler is missing", "handlers");
   }
   return handlers[evidence.choice]() as ReturnType<H[K]>;

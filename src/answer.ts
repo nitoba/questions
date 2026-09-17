@@ -2,7 +2,10 @@ import type { Batch, BooleanQuestion, ChoiceQuestion, ScoreQuestion } from "./qu
 import { finite, integer, probability } from "./internal/validation.ts";
 
 /** The probability that a yes/no proposition is true. */
-export interface BooleanAnswer { readonly type: "boolean"; readonly probability: number }
+export interface BooleanAnswer {
+  readonly type: "boolean";
+  readonly probability: number;
+}
 /** A selected option and the complete distribution; confidence is provider-supplied. */
 export interface ChoiceAnswer<K extends string = string> {
   readonly type: "choice";
@@ -21,9 +24,13 @@ export interface ScoreAnswer {
 /** The normalized evidence algebra. */
 export type AnyAnswer = BooleanAnswer | ChoiceAnswer | ScoreAnswer;
 /** Infer the evidence belonging to a particular question. */
-export type Evidence<Q> = Q extends string | BooleanQuestion ? BooleanAnswer
-  : Q extends ChoiceQuestion<infer K> ? ChoiceAnswer<K>
-  : Q extends ScoreQuestion ? ScoreAnswer : never;
+export type Evidence<Q> = Q extends string | BooleanQuestion
+  ? BooleanAnswer
+  : Q extends ChoiceQuestion<infer K>
+    ? ChoiceAnswer<K>
+    : Q extends ScoreQuestion
+      ? ScoreAnswer
+      : never;
 /** Preserve the correlation between each question key and its evidence. */
 export type Answers<B extends Batch> = { readonly [K in keyof B]: Evidence<B[K]> };
 /** Sparse probability mass. Pure helpers do not renormalize or assume independence. */
@@ -31,12 +38,17 @@ export interface Distribution<K extends string = string> {
   readonly probabilities: Readonly<Partial<Record<K, number>>>;
 }
 /** An outcome or application value paired with its probability. */
-export interface Ranked<T> { readonly value: T; readonly probability: number }
+export interface Ranked<T> {
+  readonly value: T;
+  readonly probability: number;
+}
 
 function entries<K extends string>(answer: Distribution<K>): Ranked<K>[] {
   return (Object.keys(answer.probabilities) as K[]).flatMap((value) => {
     const mass = answer.probabilities[value];
-    return mass === undefined ? [] : [{ value, probability: probability(mass, `probabilities.${value}`) }];
+    return mass === undefined
+      ? []
+      : [{ value, probability: probability(mass, `probabilities.${value}`) }];
   });
 }
 
@@ -63,8 +75,14 @@ export function margin<K extends string>(answer: Distribution<K>): number {
 }
 
 /** Sum the mass of a set of outcomes without assuming independence from other answers. */
-export function probabilityOf<K extends string>(answer: Distribution<K>, predicate: (value: K) => boolean): number {
-  return entries(answer).reduce((total, entry) => total + (predicate(entry.value) ? entry.probability : 0), 0);
+export function probabilityOf<K extends string>(
+  answer: Distribution<K>,
+  predicate: (value: K) => boolean,
+): number {
+  return entries(answer).reduce(
+    (total, entry) => total + (predicate(entry.value) ? entry.probability : 0),
+    0,
+  );
 }
 
 /**
@@ -72,7 +90,10 @@ export function probabilityOf<K extends string>(answer: Distribution<K>, predica
  * @example
  * Answer.coarsen(evidence, (intent) => intent === "refund" ? "billing" : "support");
  */
-export function coarsen<K extends string, G extends string>(answer: Distribution<K>, group: (value: K) => G): Distribution<G> {
+export function coarsen<K extends string, G extends string>(
+  answer: Distribution<K>,
+  group: (value: K) => G,
+): Distribution<G> {
   const groups = new Map<G, number>();
   for (const entry of entries(answer)) {
     const key = group(entry.value);
@@ -82,14 +103,20 @@ export function coarsen<K extends string, G extends string>(answer: Distribution
 }
 
 /** Calculate Σ probability × value. Non-finite callback values and overflow are rejected. */
-export function expectedValue<K extends string>(answer: Distribution<K>, value: (outcome: K) => number): number {
-  const total = entries(answer).reduce((sum, entry) =>
-    sum + entry.probability * finite(value(entry.value), `value.${entry.value}`), 0);
+export function expectedValue<K extends string>(
+  answer: Distribution<K>,
+  value: (outcome: K) => number,
+): number {
+  const total = entries(answer).reduce(
+    (sum, entry) => sum + entry.probability * finite(value(entry.value), `value.${entry.value}`),
+    0,
+  );
   return finite(total, "expectedValue");
 }
 
 /** Boolean confidence uses |2P(true)-1|; other answers retain provider confidence. */
 export function confidence(answer: AnyAnswer): number {
-  return answer.type === "boolean" ? Math.abs(2 * probability(answer.probability, "probability") - 1)
+  return answer.type === "boolean"
+    ? Math.abs(2 * probability(answer.probability, "probability") - 1)
     : probability(answer.confidence, "confidence");
 }
