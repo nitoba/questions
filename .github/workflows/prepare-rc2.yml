@@ -34,11 +34,10 @@ jobs:
       - run: bun run check
       - run: npm publish --dry-run --access public --tag next
 
-      - name: Commit validated rc2 preparation
+      - name: Commit validated rc2 documentation
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git rm -f .github/workflows/prepare-rc2.yml .github/scripts/prepare-rc2.mjs
-          git add package.json README.md CHANGELOG.md docs/generative.md docs/releasing.md .github/workflows/publish.yml
-          git commit -m 'chore(release): prepare 0.1.0-rc.2'
+          git add README.md CHANGELOG.md docs/generative.md docs/releasing.md
+          git commit -m 'docs(release): prepare 0.1.0-rc.2'
           git push origin HEAD:release/0.1.0-rc.2
