@@ -30,7 +30,8 @@ jobs:
       - name: TypeScript 7, lint, format, Bun tests, build and packed consumers
         run: bun run check
       - name: Run the same runtime suite under Node
-        run: node --no-warnings --experimental-strip-types --experimental-loader ./scripts/node-test-loader.mjs --test --test-timeout=5000 tests/*.test.ts
+        # Keep SDK module startup from competing with other files' short deadline fixtures.
+        run: node --no-warnings --experimental-strip-types --experimental-loader ./scripts/node-test-loader.mjs --test --test-concurrency=1 --test-timeout=5000 tests/*.test.ts
       - name: Produce installable package
         if: matrix.node == '24'
         run: bun pm pack --filename questions.tgz
@@ -57,5 +58,5 @@ jobs:
       - run: bun install --frozen-lockfile
       - run: bun add --dev --exact zod@4.0.0
       - name: Types, runtime and installed package against minimum peer
-        # The optional Gateway SDK requires Zod >=4.1.8; this job validates the native package peer.
-        run: bun run typecheck && bun test tests/jev.test.ts tests/providers-http.test.ts tests/schema.test.ts tests/questions.test.ts tests/streams.test.ts tests/evidence.test.ts tests/replay.test.ts tests/diagnostics.test.ts tests/lifecycle.test.ts && bun run build && bun run test:package:native
+        # Optional AI SDK integrations require Zod >=4.1.8; this job validates the native package peer.
+        run: bun run typecheck && bun test tests/jev.test.ts tests/providers-http.test.ts tests/schema.test.ts tests/questions.test.ts tests/streams.test.ts tests/evidence.test.ts tests/replay.test.ts tests/diagnostics.test.ts tests/lifecycle.test.ts tests/probability-source.test.ts && bun run build && bun run test:package:native
