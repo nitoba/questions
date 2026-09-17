@@ -133,7 +133,7 @@ const questions = Questions.create({ model });
 
 The structural bridge accepts Evaluation V4 models, not language/chat models or plain string IDs. It captures `doEvaluate` with its original `this` binding, snapshots the supported question types, and checks requested capabilities before calling the SDK. All results are treated as unknown even when the SDK has a TypeScript return type.
 
-The bridge imports **no SDK runtime or types**. Its small structural boundary is checked against the installed official SDK in compile-only contracts and runtime tests. This avoids exposing the SDK's unrelated text/audio types through Questions declarations. Existing SDK model errors keep their identity. HTTP response limits, redirect behavior and authentication are owned by that supplied model; the bridge adds no transport it cannot actually control. Use `Vercel.create` for the bounded/sanitized HTTP preset.
+The bridge imports **no SDK runtime or types**. Its human-readable timeout uses the small duration converter shared with the client. Its small structural boundary is checked against the installed official SDK in compile-only contracts and runtime tests. This avoids exposing the SDK's unrelated text/audio types through Questions declarations. Existing SDK model errors keep their identity. HTTP response limits, redirect behavior and authentication are owned by that supplied model; the bridge adds no transport it cannot actually control. Use `Vercel.create` for the bounded/sanitized HTTP preset.
 
 For a completely different protocol, implement `QuestionModel.evaluate` directly. It remains the stable provider-neutral boundary; no provider registry, container or inheritance hierarchy is required.
 
@@ -175,3 +175,7 @@ Tests cover the real installed Gateway SDK with injected HTTP and an actual loca
 ## HTTP and replay (alpha.4)
 
 Questions-owned transports now use ofetch with the shared `retry`/`hooks` configuration. The arbitrary AI SDK model bridge retains ownership boundaries and adds no HTTP retry policy of its own. `q.run(schema)` exposes validated output/evidence plus explicit live replay; `q.prepare(schema)` captures a reusable request without inference. See [HTTP and replay](http-retry-replay.md) for exact semantics and the ofetch feature evaluation.
+
+## Client-level policy versus transport policy (alpha.5)
+
+Every provider timeout now accepts a typed duration through timeout, retaining numeric timeoutMs as an exclusive compatibility alias. HTTP retry options similarly accept initialDelay, maxDelay and delay; the generic AISDK bridge still cannot control another instance's transport retry policy. Questions client defaults and semantic hooks observe full operations, while provider hooks remain HTTP-attempt events. See [semantic DX](semantic-dx.md) for the exact grammar, precedence and limits.

@@ -96,6 +96,33 @@ The current protocol supports finite decisions, not free-form JSON extraction. U
 
 See [the schema guide](docs/schemas.md) for `.describe()`, `.meta()`, `Schema.registry`, probability vs score, optionals, errors, cancellation and advanced compiled plans. Run the complete live example with `TYPESAFE_API_KEY=your-key bun examples/schema-triage.ts`.
 
+## Client policies, hooks and human-readable durations
+
+```ts
+const client = Questions.create({
+  model: TypeSafe.create({
+    apiKey,
+    timeout: "15 seconds",
+    retry: { maxRetries: 2, initialDelay: "200 ms", maxDelay: "3 s" },
+  }),
+  defaults: { confidence: 0.6, timeout: "30 seconds" },
+  hooks: {
+    onEvaluate: ({ operationId }) => console.log("Started", operationId),
+    onDecision: ({ usage, elapsedMs }) => console.log("Validated", usage, elapsedMs),
+    onError: ({ kind, stage }) => console.log("Failed", kind, stage),
+  },
+});
+const support = client.extend({ defaults: { confidence: 0.7 } });
+const run = await support.about(ticket).run(triage);
+console.log(run.value, run.operationId, run.diagnostics);
+```
+
+Semantic hooks describe one top-level operation, not every HTTP attempt. Derived clients are immutable: parent < child < call; schema confidence minima cannot be weakened. Client timeouts cover context, provider and Zod; provider timeouts remain separate. `timeout: false` clears a client deadline without disabling a caller signal. Numeric `*Ms` options remain supported, but cannot be combined with the corresponding new spelling.
+
+`Duration` (root namespace or `/duration`) accepts typed units such as `"200 milis"`, `"1.5 s"` and `"2 minutes"`; use `Duration.parse()` for environment strings. Unknown units such as `"secods"` are rejected. `Schema.compile(schema).fields` maps question IDs to lossless input paths; `.diagnose(evidence)` joins existing evidence without inference or Zod callbacks. Diagnostics are also attached to schema/confidence errors and `run()` results, but never included in default telemetry.
+
+See [semantic DX and durations](docs/semantic-dx.md) for precedence, hook failure/cancellation, replay inheritance, privacy and path semantics. The runnable example is `examples/semantic-dx.ts` (requires a TypeSafe key).
+
 ## Existing question-batch API
 
 ```ts

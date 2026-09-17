@@ -73,3 +73,11 @@ Zod 4 is a peer dependency, imported through `zod/v4/core` for Classic/Mini comp
 `internal/http-client.ts` uses ofetch's retry engine. Asynchronous lifecycle hooks enforce abort-aware waits, Retry-After, selected statuses and safe response disposal. `http.ts` defines the narrower public retry/hook contracts without exposing ofetch's mutable request objects or public types. `internal/http.ts` retains URL/header validation, fetch injection and bounded native reader ownership. Root/native providers load ofetch; independent streams and the structural SDK bridge do not.
 
 `execution.ts` compiles and captures inputs, owns one validated run, and constructs explicit in-memory Execution/Prepared handles. `ask` projects only their value; `run` exposes evidence and replay. Every replay is another evaluation, not a persistence primitive or a cache. The parse pipeline remains outside HTTP retries. Collection regrouping now carries rounding metadata into Zod revalidation. See [HTTP/replay design and opportunities](http-retry-replay.md).
+
+## Semantic operations and duration boundaries (alpha.5)
+
+`lifecycle.ts` defines public policy and safe event types. `internal/operation.ts` snapshots/merges them and owns one cancellation scope per public operation. Nested implementation steps carry an explicit private symbol instead of global state/AsyncLocalStorage, preventing duplicate events in is/ask/evidence and collection helpers. Execution/replay snapshots keep policy but never inherit an old signal. Provider HTTP lifecycles remain separate.
+
+`diagnostics.ts` joins input-path descriptors from the schema compiler to validated evidence. `Schema.compile().diagnose` never performs inference or Zod callbacks; parse errors retain path-aware diagnostics. Paths are arrays, not parsed field-name strings, and remain input paths after output transforms.
+
+`duration.ts` wraps the pinned published ms converter with strict fixed-unit grammar and package-owned template literal types. `internal/duration.ts` applies execution-timer ranges and rejects old/new alias conflicts. Client deadlines include hooks/context/parsing, provider deadlines remain narrower, and monotonic checkpoints reject overruns when synchronous user code yields control. No API can preempt a synchronous callback or undo a started effect.

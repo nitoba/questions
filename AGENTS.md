@@ -15,3 +15,8 @@
 - Never guess distributions, missing token counts, or TypeSafe confidence from another protocol. Preserve provenance and reported precision; see docs/providers.md.
 - Owned HTTP transports use pinned ofetch through internal/http-client.ts. Keep total budgets, abort-aware backoff and byte limits; never expose raw FetchError or mutable interceptor contexts publicly.
 - Execution.replay is a new potentially paid inference from captured inputs, not a cache or offline playback. Never capture business handlers or inherit prior signals. Keep the prepared handle usable after failure.
+
+- Duration strings use the published ms converter with strict, finite, whole-ms validation. Keep numeric *Ms aliases compatible and reject ambiguous duplicate options.
+- Semantic hooks belong to one top-level operation; do not count HTTP retries as extra decisions or emit nested-helper duplicates. Events must not expose prompts, values, diagnostics or raw error causes.
+- Derived clients snapshot policies and compose hooks parent-first. Never inherit AbortSignals or a running timeout into prepared/replayed work.
+- Field diagnostics use lossless input path arrays, existing validated evidence, and no extra inference or Zod callbacks. Preserve inactive optional branches and distinguish input paths from transformed outputs.

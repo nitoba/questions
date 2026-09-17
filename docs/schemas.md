@@ -162,3 +162,7 @@ The same exports are available from `@nitoba/questions/schema`; its registry is 
 ## Retain evidence and replay
 
 `q.run(schema)` returns `Execution<z.output<typeof schema>>` with `.value`, `.evidence` and `.replay()`. A replay makes a new inference from the original context/question snapshot and runs Zod callbacks again. It is not offline playback or a cache. `q.prepare(schema)` separates context capture from inference and provides a handle that survives a failed run. See [HTTP and replay](http-retry-replay.md).
+
+## Field diagnostics (alpha.5)
+
+Compiled schemas now expose fields (question IDs, lossless input paths, roles, effective guidance and option mappings) and diagnose(evidence), which validates/joins evidence without running Zod callbacks or making another model request. run(schema) returns these diagnostics with the value and operationId. Schema-backed UncertainDecision errors expose path/questionId/diagnostics; SchemaValidationError retains issues/cause plus diagnostics. Absent branches are marked inactive, and input paths are not guessed to match arbitrary transformed outputs. See [diagnostic contracts and examples](semantic-dx.md#diagnostics-by-schema-input-path).
