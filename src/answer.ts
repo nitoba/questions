@@ -1,9 +1,16 @@
 import type { Batch, BooleanQuestion, ChoiceQuestion, ScoreQuestion } from "./question.ts";
 import { finite, integer, probability } from "./internal/validation.ts";
 
+/** How probabilities were obtained, independently of the confidence calculation.
+ * `provider` means supplied by an evaluation protocol, not calibrated correctness.
+ * `estimated` means elicited from generated text. Missing provenance is unknown.
+ */
+export type ProbabilitySource = "provider" | "estimated" | "custom";
+
 /** The probability that a yes/no proposition is true. */
 export interface BooleanAnswer {
   readonly type: "boolean";
+  readonly probabilitySource?: ProbabilitySource;
   readonly probability: number;
 }
 /** Origin of choice/score confidence. Undefined on older custom providers. */
@@ -11,6 +18,7 @@ export type ConfidenceSource = "provider" | "margin" | "custom";
 /** A selected option and complete distribution; inspect confidenceSource before comparing providers. */
 export interface ChoiceAnswer<K extends string = string> {
   readonly type: "choice";
+  readonly probabilitySource?: ProbabilitySource;
   readonly choice: K;
   readonly probabilities: Readonly<Record<K, number>>;
   readonly confidence: number;
@@ -20,6 +28,7 @@ export interface ChoiceAnswer<K extends string = string> {
 /** A weighted level index, with the original rubric and complete distribution. */
 export interface ScoreAnswer {
   readonly type: "score";
+  readonly probabilitySource?: ProbabilitySource;
   readonly score: number;
   readonly probabilities: Readonly<Record<string, number>>;
   readonly legend: Readonly<Record<string, string>>;
@@ -41,6 +50,7 @@ export type Evidence<Q> = Q extends string | BooleanQuestion
 export type Answers<B extends Batch> = { readonly [K in keyof B]: Evidence<B[K]> };
 /** Sparse probability mass. Pure helpers do not renormalize or assume independence. */
 export interface Distribution<K extends string = string> {
+  readonly probabilitySource?: ProbabilitySource;
   readonly probabilities: Readonly<Partial<Record<K, number>>>;
 }
 /** An outcome or application value paired with its probability. */
@@ -61,7 +71,12 @@ function entries<K extends string>(answer: Distribution<K>): Ranked<K>[] {
 /** Expand a boolean into complementary true/false outcomes. */
 export function fromBoolean(answer: BooleanAnswer): Distribution<"true" | "false"> {
   const yes = probability(answer.probability, "probability");
-  return { probabilities: { true: yes, false: 1 - yes } };
+  return {
+    probabilities: { true: yes, false: 1 - yes },
+    ...(answer.probabilitySource === undefined
+      ? {}
+      : { probabilitySource: answer.probabilitySource }),
+  };
 }
 
 /** Rank outcomes, best first; ties preserve object enumeration order. */
@@ -105,7 +120,12 @@ export function coarsen<K extends string, G extends string>(
     const key = group(entry.value);
     groups.set(key, (groups.get(key) ?? 0) + entry.probability);
   }
-  return { probabilities: Object.fromEntries(groups) as Partial<Record<G, number>> };
+  return {
+    probabilities: Object.fromEntries(groups) as Partial<Record<G, number>>,
+    ...(answer.probabilitySource === undefined
+      ? {}
+      : { probabilitySource: answer.probabilitySource }),
+  };
 }
 
 /** Calculate Σ probability × value. Non-finite callback values and overflow are rejected. */

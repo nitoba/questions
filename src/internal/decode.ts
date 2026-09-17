@@ -1,4 +1,4 @@
-import type { AnyAnswer, ConfidenceSource } from "../answer.ts";
+import type { AnyAnswer, ConfidenceSource, ProbabilitySource } from "../answer.ts";
 import type { AnyQuestion, Batch } from "../question.ts";
 import type { Evaluation, Rounding } from "../model.ts";
 import { ValidationError } from "../errors.ts";
@@ -35,9 +35,19 @@ function decodeAnswer(
   const answer = record(value, path);
   if (answer.type !== question.type)
     throw new ValidationError("answer type differs from question", `${path}.type`);
+  const origin = answer.probabilitySource;
+  if (
+    origin !== undefined &&
+    origin !== "provider" &&
+    origin !== "estimated" &&
+    origin !== "custom"
+  )
+    throw new ValidationError("unknown probability source", `${path}.probabilitySource`);
+  const provenance = origin === undefined ? {} : { probabilitySource: origin as ProbabilitySource };
   if (question.type === "boolean") {
     return Object.freeze({
       type: "boolean",
+      ...provenance,
       probability: probability(answer.probability, `${path}.probability`),
     });
   }
@@ -71,6 +81,7 @@ function decodeAnswer(
     }
     return Object.freeze({
       type: "choice",
+      ...provenance,
       choice: answer.choice,
       probabilities,
       confidence,
@@ -104,6 +115,7 @@ function decodeAnswer(
   }
   return Object.freeze({
     type: "score",
+    ...provenance,
     score,
     probabilities,
     confidence,

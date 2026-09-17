@@ -1,6 +1,6 @@
 {
   "name": "@nitoba/questions",
-  "version": "0.1.0-alpha.5",
+  "version": "0.1.0-alpha.6",
   "description": "Typed semantic decisions and native Web Streams, without Effect.",
   "license": "MIT",
   "author": "Bruno Alves",
@@ -55,6 +55,10 @@
     "./duration": {
       "types": "./dist/duration.d.ts",
       "import": "./dist/duration.js"
+    },
+    "./providers/generative": {
+      "types": "./dist/providers/generative.d.ts",
+      "import": "./dist/providers/generative.js"
     }
   },
   "scripts": {
@@ -66,7 +70,7 @@
     "format:check": "oxfmt --check .",
     "build": "bun run --bun tsdown && tsc -p tsconfig.build.json",
     "check": "bun run typecheck && bun run lint && bun run format:check && bun test && bun run build && bun run test:package && node scripts/check-example-links.mjs",
-    "test:package": "node scripts/package-smoke.mjs && node scripts/sdk-package-smoke.mjs",
+    "test:package": "node scripts/package-smoke.mjs && node scripts/sdk-package-smoke.mjs && node scripts/generative-package-smoke.mjs",
     "test:package:native": "node scripts/package-smoke.mjs",
     "test:examples": "bun test ./examples/tests && node scripts/check-example-links.mjs"
   },
@@ -75,10 +79,15 @@
     "ofetch": "1.5.0"
   },
   "devDependencies": {
+    "@ai-sdk/anthropic": "4.0.56",
     "@ai-sdk/gateway": "4.0.85",
+    "@ai-sdk/google": "4.0.74",
+    "@ai-sdk/openai": "4.0.69",
     "@ai-sdk/provider": "4.0.17",
     "@types/bun": "1.4.2",
+    "@types/json-schema": "7.0.15",
     "@types/ms": "2.1.0",
+    "ai": "7.0.105",
     "oxfmt": "0.66.0",
     "oxlint": "1.83.0",
     "publint": "0.3.24",
@@ -88,10 +97,18 @@
   },
   "peerDependencies": {
     "@ai-sdk/gateway": "^4.0.85",
+    "@ai-sdk/provider": "^4.0.17",
+    "ai": "^7.0.105",
     "zod": "^4.0.0"
   },
   "peerDependenciesMeta": {
     "@ai-sdk/gateway": {
+      "optional": true
+    },
+    "ai": {
+      "optional": true
+    },
+    "@ai-sdk/provider": {
       "optional": true
     }
   },

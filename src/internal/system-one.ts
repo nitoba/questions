@@ -71,8 +71,8 @@ export function normalizeResponse(value: unknown): unknown {
         return [
           key,
           answer.type === "noul"
-            ? { type: "boolean", probability: answer.noul }
-            : { ...answer, confidenceSource: "provider" },
+            ? { type: "boolean", probability: answer.noul, probabilitySource: "provider" }
+            : { ...answer, confidenceSource: "provider", probabilitySource: "provider" },
         ];
       }),
     ),

@@ -11,6 +11,7 @@ export default defineConfig({
     "src/providers/system-one.ts",
     "src/providers/ai-sdk.ts",
     "src/providers/vercel.ts",
+    "src/providers/generative.ts",
   ],
   format: "esm",
   platform: "neutral",

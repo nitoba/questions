@@ -33,6 +33,7 @@ export type {
   Evidence,
   AnyAnswer,
   ConfidenceSource,
+  ProbabilitySource,
   BooleanAnswer,
   ChoiceAnswer,
   ScoreAnswer,
