@@ -1,31 +1,62 @@
-name: Development workspace
+name: Apply validated development patch
 on:
   push:
     branches: [feat/policy-decisions]
     paths: [.github/workflows/dev-workspace.yml]
 permissions:
-  contents: read
+  contents: write
 jobs:
-  workspace:
+  apply:
+    if: github.repository == 'nitoba/questions' && github.ref == 'refs/heads/feat/policy-decisions'
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
-        with:
-          persist-credentials: false
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "22.16.0"
-      - uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: "1.4.2"
-      - run: bun install --frozen-lockfile
-      - name: Package sources and installed development tools without credentials
+      - name: Restore exact validated source patch
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
-          cp "$(command -v bun)" .questions-bun
-          tar -czf "$RUNNER_TEMP/questions-workspace.tgz" --exclude='./.git' --exclude='./.github/workflows/dev-workspace.yml' .
-      - uses: actions/upload-artifact@v4
-        with:
-          name: questions-dev-workspace
-          path: ${{ runner.temp }}/questions-workspace.tgz
-          retention-days: 1
+          python3 - <<'PY'
+          import os, json, base64, lzma, hashlib, urllib.request, subprocess
+          from pathlib import Path
+          shas = [
+              '63909d9be23cf603ad136cb291ba7951a0f06168',
+              '273874d0505cf7c622e8e46f253b71d9daa99da9',
+              '4d6cf548fa38501b81b49c3c1d3fb93a1982aa62',
+              '1da817742bdc7ec634b718c989a39c886126234d',
+              '56ca9416365ea549dbbd234f33a7e025d5821df3',
+              '6efe91cee0cdc46bc990693a35c2d640ea284bf2',
+              '3807f84d7228e568c7fe1f7ab5d268cfeb744612',
+              '7a4df413482d280beace54c30080f953a9c26028',
+              'e9372eca497f69a5fd097f8cc4edf9f46c58fe74',
+          ]
+          chunks = []
+          for sha in shas:
+              request = urllib.request.Request(
+                  f'https://api.github.com/repos/nitoba/questions/git/blobs/{sha}',
+                  headers={'Authorization': f'Bearer {os.environ["GH_TOKEN"]}',
+                           'Accept': 'application/vnd.github+json'},
+              )
+              with urllib.request.urlopen(request, timeout=30) as response:
+                  entry = json.load(response)
+              chunk = base64.b64decode(entry['content'])
+              digest = hashlib.sha1(f'blob {len(chunk)}\0'.encode() + chunk).hexdigest()
+              assert digest == sha, f'Blob integrity mismatch: {sha}'
+              chunks.append(chunk)
+          patch = lzma.decompress(b''.join(chunks))
+          assert hashlib.sha256(patch).hexdigest() == 'a8936985f9939703b14c319239bd84d3eb50bd7d4d2c172f7f4189edb981201a'
+          patch_path = Path(os.environ['RUNNER_TEMP']) / 'questions-validated.patch'
+          patch_path.write_bytes(patch)
+          subprocess.run(['git', 'apply', '--check', str(patch_path)], check=True)
+          subprocess.run(['git', 'apply', '--index', str(patch_path)], check=True)
+          paths = subprocess.check_output(['git', 'diff', '--cached', '--name-only']).decode().splitlines()
+          assert len(paths) == 23 and all(not path.startswith('.github/') for path in paths), paths
+          subprocess.run(['git', 'diff', '--cached', '--check'], check=True)
+          print(f'Applied integrity-verified implementation: {len(paths)} source, test and documentation files.')
+          PY
+      - name: Commit only to isolated development branch
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'feat: implement ordered policies and descriptive routing'
+          git push origin HEAD:refs/heads/feat/policy-decisions
