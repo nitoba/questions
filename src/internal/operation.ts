@@ -13,7 +13,14 @@ import type {
 import type { Evaluation, QuestionModel } from "../model.ts";
 import type { Batch } from "../question.ts";
 import { resolve as duration } from "./duration.ts";
-import { ProviderError, TimeoutError, UncertainDecision, ValidationError } from "../errors.ts";
+import {
+  ProviderError,
+  TimeoutError,
+  UncertainDecision,
+  UncertainPolicyError,
+  UncertainBranchError,
+  ValidationError,
+} from "../errors.ts";
 import { SchemaValidationError } from "../schema.ts";
 import { abortable, cancellation } from "./abort.ts";
 import { probability, record, text } from "./validation.ts";
@@ -200,7 +207,9 @@ export async function operate<T>(
             ? "aborted"
             : error instanceof ProviderError
               ? "provider"
-              : error instanceof UncertainDecision
+              : error instanceof UncertainDecision ||
+                  error instanceof UncertainPolicyError ||
+                  error instanceof UncertainBranchError
                 ? "uncertain"
                 : error instanceof SchemaValidationError
                   ? "schema"
@@ -210,7 +219,12 @@ export async function operate<T>(
       const failure: OperationErrorEvent = Object.freeze({
         ...event(),
         kind,
-        stage: error instanceof UncertainDecision ? "decision" : context.stage,
+        stage:
+          error instanceof UncertainDecision ||
+          error instanceof UncertainPolicyError ||
+          error instanceof UncertainBranchError
+            ? "decision"
+            : context.stage,
         evaluationCount: context.evaluationCount,
         questionCount: context.questionCount,
         itemCount: context.itemCount,

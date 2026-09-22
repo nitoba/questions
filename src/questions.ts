@@ -1,3 +1,24 @@
+import {
+  prepareRouting,
+  selectRoute,
+  type Branches,
+  type BranchOptions,
+  type BranchValue,
+} from "./branch.ts";
+import { UncertainBranchError, UnmatchedBranchError } from "./errors.ts";
+export type {
+  Branches,
+  BranchHandler,
+  DescriptiveBranch,
+  BranchOptions,
+  BranchSelection,
+  BranchValue,
+  RankedBranch,
+  UncertainBranchContext,
+  UnmatchedBranchContext,
+  BranchUncertaintyReason,
+} from "./branch.ts";
+import type * as Policy from "./policy.ts";
 import type { Defaults, OperationOptions, SemanticHooks, Operation } from "./lifecycle.ts";
 import {
   settings,
@@ -14,7 +35,7 @@ import type { Execution, Prepared } from "./execution.ts";
 import * as Answer from "./answer.ts";
 import { requireConfidence } from "./decision.ts";
 import type { Evaluation, QuestionModel } from "./model.ts";
-import type { Awaitable, CallContext, Description, State, StateSource } from "./types.ts";
+import type { Awaitable, Description, State, StateSource } from "./types.ts";
 import { cancellation, abortable } from "./internal/abort.ts";
 import { decode } from "./internal/decode.ts";
 import { probability, state } from "./internal/validation.ts";
@@ -209,6 +230,30 @@ export class BoundQuestions {
   }
 
   /**
+   * Evaluate a policy once and return its exact union of static results.
+   * Priority and uncertainty are interpreted locally after evidence and confidence validation.
+   * @example
+   * const verdict = await questions.about(change).decide(review, { timeout: "10 s" });
+   */
+  async decide<T, B extends Question.Batch>(
+    policy: Policy.Definition<T, B>,
+    options: Options = {},
+  ): Promise<T> {
+    return withOperation(
+      this.#model,
+      this.#settings,
+      "decide",
+      options ?? {},
+      async (options) => (await this.run(policy, options)).value,
+    );
+  }
+
+  /** Evaluate a policy and retain its value, evidence, ordered rule trace and fresh-inference replay. */
+  async run<T, B extends Question.Batch>(
+    policy: Policy.Definition<T, B>,
+    options?: Options,
+  ): Promise<Policy.Execution<T, B>>;
+  /**
    * Evaluate once and retain the validated value, evidence and an explicit replay operation.
    * Unlike ask(), the result exposes replay(), which makes a NEW potentially paid inference.
    * It captures context once; replay never invokes branch handlers or rereads a live source.
@@ -227,7 +272,7 @@ export class BoundQuestions {
     options?: Options,
   ): Promise<Execution<Question.Values<B>, B>>;
   async run(
-    batch: Question.Batch | Schema.Type,
+    batch: Question.Batch | Schema.Type | Policy.Definition<unknown>,
     options: Options = {},
   ): Promise<Execution<unknown>> {
     return withOperation(
@@ -372,26 +417,53 @@ export class BoundQuestions {
   }
 
   /**
-   * Select a descriptive branch and invoke only its handler. The inference may fail without
-   * running any handler. Handler failures are preserved and never trigger an automatic fallback.
+   * Select one ordinary function or descriptive branch, then execute only its handler.
+   * Descriptors separate intent guidance from code. Eligibility is local, not authorization.
+   * selection.allowUnmatched adds a rejection alternative; sole handlers are never auto-selected.
+   * Explicit fallbacks handle only route outcomes, never transport, gate or handler failures.
+   * @example
+   * await questions.about(request.ask).branch("Which operation?", {
+   *   review: { description: "Review the change", run: () => review(request.change) },
+   *   explain: { description: "Return the summary", run: () => request.change.summary },
+   * }, { selection: { allowUnmatched: true, minProbability: 0.8, minMargin: 0.2 } });
    */
-  async branch<const H extends Readonly<Record<string, (context: CallContext) => unknown>>>(
+  async branch<const H extends Branches, U = never, M = never>(
     question: string,
     handlers: H,
-    options: Options = {},
-  ): Promise<Awaited<ReturnType<H[keyof H]>>> {
-    return withOperation<Awaited<ReturnType<H[keyof H]>>>(
+    options: BranchOptions<U, M> = {},
+  ): Promise<BranchValue<H> | Awaited<U> | Awaited<M>> {
+    return withOperation<BranchValue<H> | Awaited<U> | Awaited<M>>(
       this.#model,
       this.#settings,
       "branch",
       options ?? {},
-      async (options, context): Promise<Awaited<ReturnType<H[keyof H]>>> => {
-        const chosen = await this.choose(question, handlers, (_, key) => key, options);
+      async (scoped, context): Promise<BranchValue<H> | Awaited<U> | Awaited<M>> => {
+        const requested = options ?? {};
+        const routing = prepareRouting(question, handlers, requested);
+        const onUncertain = requested.onUncertain;
+        const onUnmatched = requested.onUnmatched;
+        const evidence =
+          routing.question === undefined
+            ? undefined
+            : (await this.evidence({ answer: routing.question }, scoped)).answers.answer;
+        context.check();
+        context.stage = "decision";
+        if (evidence !== undefined && scoped.confidence !== undefined)
+          requireConfidence(evidence, scoped.confidence, question);
+        const route = selectRoute(routing, evidence);
+        if (route.kind === "uncertain" && !onUncertain)
+          throw new UncertainBranchError(route.details);
+        if (route.kind === "unmatched" && !onUnmatched)
+          throw new UnmatchedBranchError(route.details);
         await context.decision();
         context.stage = "handler";
-        const signal = context.signal;
         context.check();
-        return (await chosen({ signal })) as Awaited<ReturnType<H[keyof H]>>;
+        const signal = context.signal;
+        if (route.kind === "uncertain")
+          return (await onUncertain!(Object.freeze({ ...route.details, signal }))) as Awaited<U>;
+        if (route.kind === "unmatched")
+          return (await onUnmatched!(Object.freeze({ ...route.details, signal }))) as Awaited<M>;
+        return (await route.handler({ signal })) as BranchValue<H>;
       },
     );
   }

@@ -47,7 +47,7 @@ try {
   assert.equal(existsSync(join(directory, "node_modules/@ai-sdk/provider")), false);
   const source = `
 import assert from "node:assert/strict";
-import { Questions, Question, Answer, Decision, Schema, SchemaValidationError, Duration } from "@nitoba/questions";
+import { Questions, Question, Answer, Decision, Policy, UncertainPolicyError, UncertainBranchError, UnmatchedBranchError, Schema, SchemaValidationError, Duration } from "@nitoba/questions";
 import { parse as parseDuration } from "@nitoba/questions/duration";
 import * as z from "zod";
 import { registry } from "@nitoba/questions/schema";
@@ -101,6 +101,27 @@ assert.equal(parent.defaults.confidence,0.2);
 assert.equal(child.defaults.confidence,0.7);
 await detailed.replay({timeout:"1 second",hooks:false});
 assert.equal(events.length,2);
+const readyPolicy = Policy.from({ready: Question.boolean("Ready?")}, {thresholds:{accept:0.8,reject:0.2}})
+  .when(({ready})=>ready.is(true), {action:"ship"}).onUncertain({action:"review"}).otherwise({action:"wait"});
+const nativePolicyExecution = await Questions.create({model}).about("change").run(readyPolicy);
+assert.deepEqual(nativePolicyExecution.value, {action:"ship"});
+assert.equal(nativePolicyExecution.trace.selected.kind,"rule");
+assert.equal((await nativePolicyExecution.replay()).trace.selected.kind,"rule");
+assert.deepEqual(await Questions.create({model}).about("change").decide(readyPolicy), {action:"ship"});
+const schemaPolicy = Policy.from(z.object({ready:z.boolean()}),{thresholds:{accept:0.8,reject:0.2}})
+  .when(({ready})=>ready.is(true),"ready").otherwise("wait");
+assert.equal(await Questions.create({model}).about("change").decide(schemaPolicy),"ready");
+const uncertainModel = {name:"uncertain",async evaluate(request){return {model:"test",usage:{inputTokens:1,outputTokens:1},answers:Object.fromEntries(Object.keys(request.questions).map(key=>[key,{type:"boolean",probability:0.5}]))};}};
+const strictPolicy = Policy.from({ready:"Ready?"},{thresholds:{accept:0.8,reject:0.2}}).when(({ready})=>ready.is(true),"go").otherwise("wait");
+await assert.rejects(Questions.create({model:uncertainModel}).about("x").decide(strictPolicy),UncertainPolicyError);
+const routingModel = {name:"routing",async evaluate(request){const keys=Object.keys(request.questions.answer.criteria);return {model:"route",usage:{inputTokens:1,outputTokens:1},answers:{answer:{type:"choice",choice:keys[0],confidence:1,probabilities:Object.fromEntries(keys.map((key,i)=>[key,i===0?1:0]))}}};}};
+assert.equal(await Questions.create({model:routingModel}).about("intent").branch("Route?",{
+  review:{description:"Review",run:()=>"reviewed"}, explain:{description:"Explain",run:()=>"summary"},
+},{selection:{allowUnmatched:true,minProbability:0.8,minMargin:0.2}}),"reviewed");
+await assert.rejects(Questions.create({model:routingModel}).about(()=>{throw new Error("unneeded context");}).branch("Route?",{
+  disabled:{description:"Not available",enabled:false,run:()=>"not-called"}
+}),UnmatchedBranchError);
+assert.equal(typeof UncertainBranchError,"function");
 console.log("Installed package runtime smoke passed");
 `;
   writeFileSync(join(directory, "consumer.mjs"), source);
@@ -109,7 +130,7 @@ console.log("Installed package runtime smoke passed");
   writeFileSync(
     join(directory, "consumer.ts"),
     `
-import { Questions, Question, Duration, type QuestionModel, type DurationInput, type SemanticHooks, type FieldDiagnostic } from "@nitoba/questions";
+import { Questions, Question, Policy, Duration, type QuestionModel, type DurationInput, type SemanticHooks, type FieldDiagnostic, type PolicyExecution } from "@nitoba/questions";
 import { toMilliseconds } from "@nitoba/questions/duration";
 import * as z from "zod";
 import { annotate, compile, type Output } from "@nitoba/questions/schema";
@@ -157,6 +178,22 @@ child.extend({defaults:{timeout:"10 secods"}});
 // @ts-expect-error readonly derived client defaults
 child.defaults.confidence=0;
 void [duration,Duration,toMilliseconds,diagnostics,typedPath,inspected];
+const policy = Policy.from({route:Question.choice("Which?",{a:"A",b:"B"})},{thresholds:{accept:0.8,reject:0.2}})
+  .when(({route})=>route.is("a"),"selected").onUncertain("review").otherwise("rejected");
+const policyResult:"selected"|"review"|"rejected"=await child.about("x").decide(policy);
+const policyExecution:PolicyExecution<typeof policyResult>=await child.about("x").run(policy);
+const policyTrace:Policy.Trace=(await policyExecution.replay()).trace;
+// @ts-expect-error undeclared labels must remain invalid in published declarations
+Policy.from({route:Question.choice("Which?",{a:"A",b:"B"})},{thresholds:{accept:0.8,reject:0.2}}).when(({route})=>route.is("c"),"bad");
+// @ts-expect-error policy result unions must survive packaging
+const invalidPolicy:"other"=policyResult;
+const schemaPolicy=Policy.from(z.object({ready:z.boolean()}),{thresholds:{accept:0.8,reject:0.2}}).when(({ready})=>ready.is(true),1).otherwise(0);
+const binary:0|1=await child.about("x").decide(schemaPolicy);
+const branchResult:string|number|null=await child.about("x").branch("Which?",{
+  a:{description:"A",run:({signal})=>{const s:AbortSignal=signal;void s;return 1;}},
+  b:async()=>"b",
+},{selection:{allowUnmatched:true},onUncertain:({reason})=>reason,onUnmatched:()=>null});
+void [policyResult,policyTrace,invalidPolicy,binary,branchResult];
 void [route, invalid, stream, create, output, id, probability, plan];
 `,
   );
