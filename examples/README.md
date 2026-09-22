@@ -4,9 +4,9 @@ Start with one decision. Progress to typed question batches, evidence, Zod, oper
 Web Streams, and a persistent fulfillment-exception application. **All examples, comments,
 sample data and tutorial instructions are in English.**
 
-These examples target the repository's current **0.1.0-rc.3** API. They replace the previous
-unstructured examples; they are not compatibility wrappers around them. No library API changes
-are needed to run this learning path.
+Lessons 01–17 target the **0.1.0-rc.3** baseline. Lesson 18 uses the **unreleased** policy and
+descriptive-routing APIs in this checkout; it is not compatible with the published rc.3 package.
+Run the learning path against this repository's source.
 
 ## Setup and execution
 
@@ -30,7 +30,7 @@ bun examples/01-first-question.ts
 
 ### Choose one model configuration
 
-Most lessons (02-09, 11-14, including 07b) and the paid commands of application 16 use
+Most lessons (02-09, 11-14 and 18, including 07b) and the paid commands of application 16 use
 [shared/runtime.ts](shared/runtime.ts). It shares configuration only; each lesson keeps its
 actual Questions operations visible. **The same files now work with native evaluation or
 prompted generation**; there is no duplicate Gemini/Claude/GPT copy of each tutorial.
@@ -260,3 +260,22 @@ Change a rubric and observe fractional scores in 02. Compare cost tables without
 inference in 06. Add an optional field and inspect its presence diagnostic in 08. Alter a
 notice after preparation in 11. Cancel 13 before it drains. Follow the failure/recovery
 walkthrough in 16 before adapting its persistence to your own application.
+
+## Lesson 18: ordered policies and descriptive routing (unreleased)
+
+[18-policies-and-routing.ts](18-policies-and-routing.ts) declares native and Zod policies,
+executes detailed and streamed decisions, and routes an intent to ordinary local functions.
+Only the request's `ask` string enters the routing prompt; the review handler explicitly sends
+the full change to the policy. Uncertainty is a first-class result, not a negative condition.
+
+```sh
+TYPESAFE_API_KEY='your-own-key' bun examples/18-policies-and-routing.ts
+```
+
+The shared provider selector also works here. `main()` performs four evaluations when routing
+returns a summary or a fallback, and five if it selects review. It does not perform replay,
+cache model results, or run the alternative Zod policy just to display its definition. Two
+stream items each evaluate one two-question batch; this is bounded concurrency, not collection
+batching. The example uses fictional data and illustrative cutoffs; the full
+[policy guide](../docs/policies.md) describes the supported schema boundary, error contracts,
+probability provenance and calibration caveats. Offline tests cover the actual exported functions.

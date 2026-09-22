@@ -5,6 +5,7 @@ import type { Awaitable, RunOptions } from "./types.ts";
 /** A public semantic operation, not an HTTP attempt. Preparation itself performs no evaluation. */
 export type Operation =
   | "ask"
+  | "decide"
   | "run"
   | "replay"
   | "evidence"

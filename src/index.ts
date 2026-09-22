@@ -5,6 +5,9 @@ export { SchemaValidationError } from "./schema.ts";
 export * as Question from "./question.ts";
 export * as Answer from "./answer.ts";
 export * as Decision from "./decision.ts";
+export * as Policy from "./policy.ts";
+export { UncertainPolicyError, UncertainBranchError, UnmatchedBranchError } from "./errors.ts";
+export type { Execution as PolicyExecution } from "./policy.ts";
 export * as Streams from "./streams.ts";
 export * as TypeSafe from "./providers/typesafe.ts";
 export * as SystemOne from "./providers/system-one.ts";
@@ -82,3 +85,16 @@ export type {
   Stage,
 } from "./lifecycle.ts";
 export type { SchemaPath, SchemaField, FieldDiagnostic } from "./diagnostics.ts";
+
+export type {
+  Branches,
+  BranchHandler,
+  DescriptiveBranch,
+  BranchOptions,
+  BranchSelection,
+  BranchValue,
+  RankedBranch,
+  UncertainBranchContext,
+  UnmatchedBranchContext,
+  BranchUncertaintyReason,
+} from "./branch.ts";

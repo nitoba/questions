@@ -1,3 +1,7 @@
+import type { Batch } from "./question.ts";
+import type { UncertainBranchContext, UnmatchedBranchContext } from "./branch.ts";
+import type { Trace } from "./policy.ts";
+import type { Evaluation } from "./model.ts";
 import type { SchemaPath, FieldDiagnostic } from "./diagnostics.ts";
 /** A malformed question, context, option, or provider response. */
 export class ValidationError extends Error {
@@ -68,5 +72,36 @@ export class UncertainDecision extends Error {
     this.path = details.path;
     this.questionId = details.questionId;
     this.diagnostics = details.diagnostics;
+  }
+}
+
+/** A prioritized policy rule could not be resolved from the available evidence. */
+export class UncertainPolicyError extends Error {
+  readonly name = "UncertainPolicyError";
+  readonly trace: Trace;
+  readonly evidence: Evaluation<Batch> | undefined;
+  constructor(trace: Trace, evidence?: Evaluation<Batch>) {
+    super("A prioritized policy rule is uncertain; provide onUncertain or handle this error");
+    this.trace = trace;
+    this.evidence = evidence;
+  }
+}
+
+/** Well-formed routing evidence failed the requested probability, margin or tie criteria. */
+export class UncertainBranchError extends Error {
+  readonly name = "UncertainBranchError";
+  readonly details: Omit<UncertainBranchContext, "signal">;
+  constructor(details: Omit<UncertainBranchContext, "signal">) {
+    super(`No branch was selected: ${details.reason}`);
+    this.details = details;
+  }
+}
+/** No enabled operation can serve the request; no handler has been executed. */
+export class UnmatchedBranchError extends Error {
+  readonly name = "UnmatchedBranchError";
+  readonly details: Omit<UnmatchedBranchContext, "signal">;
+  constructor(details: Omit<UnmatchedBranchContext, "signal">) {
+    super(`No matching branch: ${details.reason}`);
+    this.details = details;
   }
 }

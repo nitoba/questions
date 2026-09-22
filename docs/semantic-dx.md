@@ -208,3 +208,10 @@ A schema-backed confidence rejection has its input `path`, `questionId` and the 
 Existing question batches, inference, provider defaults, HTTP retry settings, native streams, and Zod output inference remain supported. No offline replay, cache, auth-refresh retry, schema relaxation or new model capabilities are introduced. Pure streams still load no Zod, ofetch, ms or SDK runtime. The structural AISDK bridge uses the duration converter for its new timeout syntax but still loads no ofetch, Zod or Gateway SDK. `@types/ms` is development-only; public declarations expose Questions' own types.
 
 Tests cover duration grammar and aliases, invalid values, package consumers, default/hook snapshots and precedence, all public operation entry points, replay isolation, late cancellation, synchronous deadline overrun, total batch parsing, schema path collisions/tuples, absent branches, selected-alternative minima, and zero extra inference or Zod callbacks for diagnostics. The same runtime suite runs under Bun and Node; installed-tarball consumers are checked without ambient Node/Bun types. No API key or paid model call is required to run the tests.
+
+## Ordered rules and descriptive branches (unreleased)
+
+For reusable multi-question decisions, use `Policy.from(...).when(...).otherwise(...)` with
+`about(data).decide(policy)` or `run(policy)`. `branch()` also accepts descriptive alternatives,
+local eligibility and explicit ambiguity/rejection handling. Existing APIs remain compatible;
+see [policies and routing](policies.md) and [tutorial 18](../examples/18-policies-and-routing.ts).
