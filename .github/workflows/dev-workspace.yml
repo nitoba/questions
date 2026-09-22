@@ -1,0 +1,31 @@
+name: Development workspace
+on:
+  push:
+    branches: [feat/policy-decisions]
+    paths: [.github/workflows/dev-workspace.yml]
+permissions:
+  contents: read
+jobs:
+  workspace:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22.16.0"
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.4.2"
+      - run: bun install --frozen-lockfile
+      - name: Package sources and installed development tools without credentials
+        run: |
+          cp "$(command -v bun)" .questions-bun
+          tar -czf "$RUNNER_TEMP/questions-workspace.tgz" --exclude='./.git' --exclude='./.github/workflows/dev-workspace.yml' .
+      - uses: actions/upload-artifact@v4
+        with:
+          name: questions-dev-workspace
+          path: ${{ runner.temp }}/questions-workspace.tgz
+          retention-days: 1
