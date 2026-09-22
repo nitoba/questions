@@ -1,13 +1,13 @@
 # Changelog
 
-## Unreleased — policies and descriptive routing
+## 0.1.0 — 2026-09-22
 
 - Add immutable `Policy.from()` definitions over native questions and required, shape-preserving Zod decisions, with typed conditions and static literal-union results.
 - Add probability cutoffs, three-valued composition, priority-preserving uncertainty and `UncertainPolicyError` with trace/evidence.
 - Add `about(data).decide(policy)` and a `run(policy)` overload with traces, preserving full-batch validation, confidence gates, lifecycle scopes and new-inference replay.
 - Extend `branch()` with descriptive alternatives, local eligibility, probability/margin selection, collision-free rejection and typed uncertainty/unmatched errors and callbacks. Preserve function-only calls without new criteria.
 - Add runtime, type-contract and installed-package coverage; document the initial Zod policy boundary and include executable tutorial 18.
-- No dependency, package-version or publication changes.
+- Publish the first stable release with npm dist-tag `latest`, including policies and descriptive routing. No runtime dependencies were added.
 
 ## 0.1.0-rc.3
 

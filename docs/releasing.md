@@ -1,73 +1,52 @@
 # Releasing Questions
 
-This repository publishes `@nitoba/questions` as a public scoped package. Release candidates use the npm `next` dist-tag; stable releases use `latest`.
+This repository publishes `@nitoba/questions` as a public scoped package. Stable releases use the npm `latest` dist-tag; release candidates use `next`. The first stable release is `0.1.0`.
 
 ## Release checklist
 
-1. Confirm `main` is green on Node 22, Node 24, Bun, the minimum native Zod peer, installed-package smoke tests, README snippets, and documentation links.
-2. Update `package.json`, `CHANGELOG.md`, and any versioned documentation.
+1. Confirm the release source passes Node 22, Node 24, Bun, the minimum native Zod peer, installed-package smoke tests, README snippets, and documentation links.
+2. Update `package.json`, `CHANGELOG.md`, and any versioned documentation. Stable versions use `x.y.z` without a prerelease suffix.
 3. Run `bun install --frozen-lockfile` and `bun run check`.
-4. Run `bun run release:dry-run` and inspect the package contents.
+4. Run `bun run release:dry-run` and inspect the package contents. The stable checkout uses `--tag latest`; use an explicit `--tag next` when preparing a release candidate.
 5. Merge or fast-forward the validated release commit to `main`.
-6. Create a Git tag whose name exactly matches `v` plus the package version, for example `v0.1.0-rc.3`.
-7. Push the tag. The **Publish to npm** workflow validates the tag and publishes automatically through npm Trusted Publishing/OIDC.
-8. Verify the package and npm dist-tags after publication before creating downstream upgrade instructions.
+6. Create and push a Git tag that exactly matches `v` plus the package version.
+7. Wait for **Publish to npm** to pass, then verify the version and dist-tags in the npm registry.
 
 ## npm Trusted Publishing
 
-The package already exists on npm. Configure its **Settings → Trusted Publisher** entry for GitHub Actions with these exact values:
+The existing Trusted Publisher configuration uses GitHub user `nitoba`, repository `questions`, workflow filename `publish.yml`, and no GitHub environment. The filename is case-sensitive and does not include `.github/workflows/`.
 
-- Organization or user: `nitoba`
-- Repository: `questions`
-- Workflow filename: `publish.yml`
-- Environment: leave empty unless the workflow later uses a GitHub environment
-- Allowed action: direct `npm publish`
-
-The workflow lives at `.github/workflows/publish.yml`, but npm expects only the filename `publish.yml`. Values are case-sensitive.
-
-The workflow uses a GitHub-hosted runner, Node 24/npm 11, and declares `id-token: write`. npm exchanges the GitHub OIDC identity for short-lived publishing credentials when `npm publish` runs. No `NPM_TOKEN` or other long-lived npm write secret is used.
-
-Because this GitHub repository is private, npm provenance attestations are not generated even though Trusted Publishing itself works. Do not add `--provenance` or `publishConfig.provenance: true` unless the repository becomes public and the release workflow is revalidated.
+The workflow uses a GitHub-hosted runner, Node 24/npm 11, and `id-token: write`. npm exchanges that OIDC identity for short-lived publishing credentials. No long-lived npm write token is required. Keep publication in `publish.yml` so it continues to match the configured publisher.
 
 ## Tag-triggered publication
 
-The workflow runs on pushed tags matching `v*`, but publication continues only after stricter validation:
+The workflow accepts `v*` tags only when the tag matches `package.json` and points to a commit contained in `main`. Versions shaped as `x.y.z` publish with `latest`; `x.y.z-rc.N` publishes with `next`. Other prerelease shapes are rejected.
 
-- the tag must equal `v` plus the exact `package.json` version;
-- the tagged commit must be contained in `main`;
-- `x.y.z-rc.N` publishes with npm dist-tag `next`;
-- `x.y.z` publishes with npm dist-tag `latest`;
-- any other prerelease shape is rejected rather than assigned a dist-tag implicitly.
-
-For the current release candidate:
+For version `0.1.0`, after the validated release commit reaches `main`:
 
 ```sh
 git switch main
 git pull --ff-only origin main
-git tag v0.1.0-rc.3
-git push origin v0.1.0-rc.3
+git tag v0.1.0
+git push origin v0.1.0
 ```
 
-Pushing the tag starts **Publish to npm** automatically. The workflow runs the package `prepublishOnly` gate through `npm publish`, so typechecks, lint, formatting, tests, build, installed-consumer checks, README snippets, and documentation links must pass before npm receives the package.
+Do not repeat those tag commands after the release already exists. A pushed tag normally starts **Publish to npm** automatically. A tag created by another workflow using `GITHUB_TOKEN` does not emit a new workflow run; that workflow must explicitly dispatch `publish.yml` with `release_tag=v0.1.0` instead.
 
-For a release candidate the effective command is:
-
-```sh
-npm publish --access public --tag next
-```
-
-For a stable version it is:
+The effective stable publication command is:
 
 ```sh
 npm publish --access public --tag latest
 ```
 
-An `ENEEDAUTH` error usually means the npm Trusted Publisher values do not exactly match the GitHub repository/workflow or `id-token: write` is unavailable.
+`prepublishOnly` runs the full validation gate before npm receives the package. Do not skip it during publication. An `ENEEDAUTH` error can indicate mismatched Trusted Publisher settings or unavailable OIDC permissions.
 
-## Stable release later
+## Verify publication
 
-A future stable `0.1.0` should update `package.json` to `0.1.0`, update the release notes, validate the exact tarball, merge that commit to `main`, and push `v0.1.0`. The workflow will publish it with `latest`.
+```sh
+npm view @nitoba/questions version
+npm view @nitoba/questions dist-tags --json
+npm install @nitoba/questions zod
+```
 
-The existing `publishConfig.tag = "next"` is appropriate while the repository is on release candidates; the workflow explicitly passes `--tag latest` for a stable tag. It can be removed as part of the stable-release cleanup to keep package metadata self-explanatory.
-
-Do not reuse a version already present in the npm registry, do not tag a commit outside `main`, and do not publish from an uncommitted working tree.
+For this release, both the default version and `dist-tags.latest` must resolve to `0.1.0`. An older version may remain under `next`; that does not affect normal installation. Do not reuse a published version, move an existing release tag, or publish an uncommitted working tree. Ordinary source changes do not publish automatically.

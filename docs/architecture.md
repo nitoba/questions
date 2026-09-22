@@ -82,7 +82,7 @@ Zod 4 is a peer dependency, imported through `zod/v4/core` for Classic/Mini comp
 
 `duration.ts` wraps the pinned published ms converter with strict fixed-unit grammar and package-owned template literal types. `internal/duration.ts` applies execution-timer ranges and rejects old/new alias conflicts. Client deadlines include hooks/context/parsing, provider deadlines remain narrower, and monotonic checkpoints reject overruns when synchronous user code yields control. No API can preempt a synchronous callback or undo a started effect.
 
-## Ordered policies and descriptive routes (unreleased)
+## Ordered policies and descriptive routes
 
 `Policy.from()` normalizes native definitions or compiles a restricted, shape-preserving Zod
 input once. Ordinary reference objects create immutable condition trees; no proxies or callback

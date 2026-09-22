@@ -4,8 +4,7 @@ Start with one decision. Progress to typed question batches, evidence, Zod, oper
 Web Streams, and a persistent fulfillment-exception application. **All examples, comments,
 sample data and tutorial instructions are in English.**
 
-Lessons 01–17 target the **0.1.0-rc.3** baseline. Lesson 18 uses the **unreleased** policy and
-descriptive-routing APIs in this checkout; it is not compatible with the published rc.3 package.
+Lessons 01–18 target **0.1.0**, including the stable policy and descriptive-routing APIs.
 Run the learning path against this repository's source.
 
 ## Setup and execution
@@ -261,7 +260,7 @@ inference in 06. Add an optional field and inspect its presence diagnostic in 08
 notice after preparation in 11. Cancel 13 before it drains. Follow the failure/recovery
 walkthrough in 16 before adapting its persistence to your own application.
 
-## Lesson 18: ordered policies and descriptive routing (unreleased)
+## Lesson 18: ordered policies and descriptive routing
 
 [18-policies-and-routing.ts](18-policies-and-routing.ts) declares native and Zod policies,
 executes detailed and streamed decisions, and routes an intent to ordinary local functions.

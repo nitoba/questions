@@ -209,7 +209,7 @@ Existing question batches, inference, provider defaults, HTTP retry settings, na
 
 Tests cover duration grammar and aliases, invalid values, package consumers, default/hook snapshots and precedence, all public operation entry points, replay isolation, late cancellation, synchronous deadline overrun, total batch parsing, schema path collisions/tuples, absent branches, selected-alternative minima, and zero extra inference or Zod callbacks for diagnostics. The same runtime suite runs under Bun and Node; installed-tarball consumers are checked without ambient Node/Bun types. No API key or paid model call is required to run the tests.
 
-## Ordered rules and descriptive branches (unreleased)
+## Ordered rules and descriptive branches
 
 For reusable multi-question decisions, use `Policy.from(...).when(...).otherwise(...)` with
 `about(data).decide(policy)` or `run(policy)`. `branch()` also accepts descriptive alternatives,

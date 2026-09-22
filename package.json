@@ -1,6 +1,6 @@
 {
   "name": "@nitoba/questions",
-  "version": "0.1.0-rc.3",
+  "version": "0.1.0",
   "description": "Typed semantic decisions for TypeScript with Zod, AI SDK providers, and native Web Streams.",
   "keywords": [
     "ai",
@@ -80,7 +80,7 @@
   "publishConfig": {
     "access": "public",
     "registry": "https://registry.npmjs.org/",
-    "tag": "next"
+    "tag": "latest"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
@@ -96,7 +96,7 @@
     "test:examples": "bun test ./examples/tests && node scripts/check-example-links.mjs",
     "test:docs": "bun run build && node scripts/check-readme-examples.mjs && node scripts/check-example-links.mjs",
     "prepublishOnly": "bun run check",
-    "release:dry-run": "npm publish --dry-run --access public --tag next"
+    "release:dry-run": "npm publish --dry-run --access public --tag latest"
   },
   "dependencies": {
     "ms": "2.1.3",

@@ -11,18 +11,17 @@ readable deadlines, explicit retries, replay and observability as your applicati
 No Effect dependency, service container or alternative execution runtime. Independently inspired
 by [effect-questions](https://github.com/saiashirwad/effect-questions).
 
-> **Release status:** the published baseline is `0.1.0-rc.3`. Sections marked **unreleased**
-> describe additive development APIs available in this checkout, not in that npm release.
+> **Stable release:** `0.1.0` includes ordered policies and descriptive routing and is distributed through the npm `latest` tag.
 > Existing release-candidate calls retain their contracts. Decisions are finite classifications, not arbitrary JSON generation, factual guarantees
 > or authorization to execute business actions. See the [changelog](CHANGELOG.md) and
 > [migration guide](docs/migration.md) before upgrading.
 
 [Quick start](#quick-start) · [Providers](#providers) · [Generative models](#generative-language-models) · [Schemas](#zod-schemas) ·
-[Policies (unreleased)](#policies-unreleased) · [Streams](#web-streams) · [Tutorials](examples/README.md) · [Documentation](#documentation)
+[Policies](#policies) · [Streams](#web-streams) · [Tutorials](examples/README.md) · [Documentation](#documentation)
 
 ## Quick start
 
-Install the published release candidate from npm. The `next` dist-tag tracks the current prerelease:
+Install the stable release from npm. These commands resolve the `latest` dist-tag:
 
 ```sh
 bun add @nitoba/questions zod
@@ -62,7 +61,7 @@ console.log(urgent); // boolean, inferred and validated
 Later snippets reuse `questions` and `ticket`. Each operation invocation starts new work;
 re-awaiting the same Promise does not. Construction alone performs no inference.
 
-## Policies (unreleased)
+## Policies
 
 Declare questions once, then apply ordered rules to their evidence. Execute through the same
 client; a policy selects static values rather than running business handlers.
@@ -614,7 +613,7 @@ Gateway SDK. Browser/edge portability is not a claim that every deployment targe
 
 ## Documentation
 
-- [Policies and descriptive routing (unreleased)](docs/policies.md): ordered rules, explicit uncertainty, traces and intent-based branches.
+- [Policies and descriptive routing](docs/policies.md): ordered rules, explicit uncertainty, traces and intent-based branches.
 
 | Guide                                                 | Details                                                                     |
 | ----------------------------------------------------- | --------------------------------------------------------------------------- |

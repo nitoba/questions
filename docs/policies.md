@@ -1,7 +1,6 @@
 # Policies and descriptive routing
 
-**Unreleased:** these APIs are available in this checkout, not in the published `0.1.0-rc.3`
-package. No additional dependency or runtime is required. Existing question batches, Zod
+**Available since 0.1.0:** ordered policies and descriptive routing are included in the stable npm package. No additional dependency or runtime is required. Existing question batches, Zod
 `ask()` calls, and function-only `branch()` calls retain their contracts.
 
 `Question` describes what to ask. `Policy` combines the resulting evidence into an ordered
