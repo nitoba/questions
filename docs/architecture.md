@@ -2,7 +2,7 @@
 
 ## Boundaries
 
-`question.ts` defines and snapshots boolean, choice and score questions. `model.ts` declares the provider boundary. `questions.ts` binds context, performs one batch evaluation, validates it, and projects values or dispatches a selected handler. `answer.ts` implements probability mathematics. `decision.ts` implements policies over evidence. `providers/system-one.ts` owns native HTTP/retries and `internal/system-one.ts` owns wire conversion; Jev is a compatibility preset. `streams.ts` is a generic Web Streams facade; it does not know about Jev or models. `internal` contains validation, response decoding, cancellation and bounded stream-window mechanics.
+`question.ts` defines and snapshots boolean, choice and score questions. `model.ts` declares the provider boundary. `questions.ts` binds context, performs one batch evaluation, validates it, and projects values or dispatches a selected handler. `answer.ts` implements probability mathematics. `decision.ts` implements confidence and expected-loss helpers over evidence. `policy.ts` defines immutable ordered rule descriptions; `execution.ts` evaluates them through the existing snapshot/replay pipeline. `branch.ts` describes and selects routes without executing business handlers. `providers/system-one.ts` owns native HTTP/retries and `internal/system-one.ts` owns wire conversion; Jev is a compatibility preset. `streams.ts` is a generic Web Streams facade; it does not know about Jev or models. `internal` contains validation, response decoding, cancellation and bounded stream-window mechanics.
 
 There is no DI container: `Questions.create({ model })` captures a model. There is no global environment lookup. Applications provide secrets, logging, authorization, rate limiting and persistence. JavaScript and declarations are separate build outputs from tsdown and TypeScript 7 respectively.
 
@@ -81,3 +81,24 @@ Zod 4 is a peer dependency, imported through `zod/v4/core` for Classic/Mini comp
 `diagnostics.ts` joins input-path descriptors from the schema compiler to validated evidence. `Schema.compile().diagnose` never performs inference or Zod callbacks; parse errors retain path-aware diagnostics. Paths are arrays, not parsed field-name strings, and remain input paths after output transforms.
 
 `duration.ts` wraps the pinned published ms converter with strict fixed-unit grammar and package-owned template literal types. `internal/duration.ts` applies execution-timer ranges and rejects old/new alias conflicts. Client deadlines include hooks/context/parsing, provider deadlines remain narrower, and monotonic checkpoints reject overruns when synchronous user code yields control. No API can preempt a synchronous callback or undo a started effect.
+
+## Ordered policies and descriptive routes (unreleased)
+
+`Policy.from()` normalizes native definitions or compiles a restricted, shape-preserving Zod
+input once. Ordinary reference objects create immutable condition trees; no proxies or callback
+source parsing are used. Opaque definitions and owned conditions live in WeakMaps, preventing
+forged plans and cross-policy condition mixing. Result data is cloned/frozen at construction.
+
+The common execution pipeline captures state, evaluates the entire declared batch once,
+validates all evidence, enforces existing confidence/schema gates and interprets ordered rules.
+The first match or uncertain rule stops selection. `run(policy)` preserves evidence and adds a
+pure interpreter trace; replay retains the policy but performs fresh inference without retaining
+an old signal or business handlers. The `decide` operation returns only the selected value and
+shares the existing lifecycle scope rather than emitting nested helper events.
+
+Descriptive `branch()` snapshots metadata, eligibility and handlers before acquiring context.
+It ranks validated alternatives, including explicit rejection when configured, then runs exactly
+one selected or explicit fallback handler. Old function-only maps keep their previous behavior.
+No model constructs arguments and no failed handler causes another handler to run. Routing
+and a policy called from its handler are separate operations, with separate evaluation counts.
+See [policies](policies.md) for semantics, supported schemas and error boundaries.

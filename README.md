@@ -11,14 +11,14 @@ readable deadlines, explicit retries, replay and observability as your applicati
 No Effect dependency, service container or alternative execution runtime. Independently inspired
 by [effect-questions](https://github.com/saiashirwad/effect-questions).
 
-> **Release candidate:** this README describes the `0.1.0-rc.3` API. The public surface is now
-> frozen for the 0.1.0 release candidate; fixes and compatibility validation take priority over new
-> features. Decisions are finite classifications, not arbitrary JSON generation, factual guarantees
+> **Release status:** the published baseline is `0.1.0-rc.3`. Sections marked **unreleased**
+> describe additive development APIs available in this checkout, not in that npm release.
+> Existing release-candidate calls retain their contracts. Decisions are finite classifications, not arbitrary JSON generation, factual guarantees
 > or authorization to execute business actions. See the [changelog](CHANGELOG.md) and
 > [migration guide](docs/migration.md) before upgrading.
 
 [Quick start](#quick-start) · [Providers](#providers) · [Generative models](#generative-language-models) · [Schemas](#zod-schemas) ·
-[Streams](#web-streams) · [Tutorials](examples/README.md) · [Documentation](#documentation)
+[Policies (unreleased)](#policies-unreleased) · [Streams](#web-streams) · [Tutorials](examples/README.md) · [Documentation](#documentation)
 
 ## Quick start
 
@@ -61,6 +61,57 @@ console.log(urgent); // boolean, inferred and validated
 
 Later snippets reuse `questions` and `ticket`. Each operation invocation starts new work;
 re-awaiting the same Promise does not. Construction alone performs no inference.
+
+## Policies (unreleased)
+
+Declare questions once, then apply ordered rules to their evidence. Execute through the same
+client; a policy selects static values rather than running business handlers.
+
+```ts
+import { Policy, Question as PolicyQuestion } from "@nitoba/questions";
+
+const releasePolicy = Policy.from(
+  {
+    impact: PolicyQuestion.choice("Classify the public API impact.", {
+      none: "No API change.",
+      breaking: "Existing consumers can break.",
+    }),
+    regression: PolicyQuestion.boolean("Are there concrete indications of a regression?"),
+  },
+  { thresholds: { accept: 0.8, reject: 0.2 } },
+)
+  .when(
+    ({ impact, regression }) => impact.is("breaking").and(regression.is(true, { reject: 0.5 })),
+    "block",
+  )
+  .when(({ impact }) => impact.is("breaking"), "migration-required")
+  .onUncertain("human-review")
+  .otherwise("ship");
+
+const releaseVerdict = await questions
+  .about({
+    summary: "Remove the public retry option.",
+    diff: "- retry?: number;",
+  })
+  .decide(releasePolicy);
+// "block" | "migration-required" | "human-review" | "ship"
+```
+
+A question reused by several rules is evaluated once per execution. The first uncertain rule
+stops selection; uncertainty is not a false condition. Thresholds refer to probability mass,
+not provider-specific confidence, and the example values are not universal safety guarantees.
+
+Use `.run(releasePolicy)` instead for evidence and an inspectable trace. Its `.replay()` is a
+new inference, not a cache. `Policy.from()` also accepts supported shape-preserving Zod decision
+schemas; Streams can call `.decide()` inside the existing `map` operator.
+
+`branch()` now additionally accepts `{ description, examples?, enabled?, run }` descriptors,
+probability/margin criteria, and explicit uncertainty/no-match handlers. It selects ordinary
+functions without generating arguments; function-only calls remain compatible.
+
+See [policies and routing](docs/policies.md) for cutoffs, priority, the Zod support boundary,
+errors and complete routing examples. [Tutorial 18](examples/18-policies-and-routing.ts)
+executes direct, detailed, streamed and routed decisions from this checkout.
 
 ## Providers
 
@@ -562,6 +613,8 @@ stream subpaths are independent of Zod; the structural SDK bridge does not load 
 Gateway SDK. Browser/edge portability is not a claim that every deployment target was tested.
 
 ## Documentation
+
+- [Policies and descriptive routing (unreleased)](docs/policies.md): ordered rules, explicit uncertainty, traces and intent-based branches.
 
 | Guide                                                 | Details                                                                     |
 | ----------------------------------------------------- | --------------------------------------------------------------------------- |

@@ -1,3 +1,6 @@
+import type * as Policy from "./policy.ts";
+import { definitions, isPolicy } from "./internal/policy-plan.ts";
+import { decide } from "./internal/policy-condition.ts";
 import type { OperationOptions } from "./lifecycle.ts";
 import type { FieldDiagnostic } from "./diagnostics.ts";
 import {
@@ -62,7 +65,7 @@ export interface Prepared<T, B extends Question.Batch = Question.Batch> {
 export async function prepare(
   model: QuestionModel,
   source: StateSource,
-  input: Question.Batch | Schema.Type,
+  input: Question.Batch | Schema.Type | Policy.Definition<unknown>,
   options: OperationOptions = {},
   defaults?: Settings,
 ): Promise<Prepared<unknown>> {
@@ -73,6 +76,7 @@ export async function prepare(
   if (minimum !== undefined) probability(minimum, "confidence.minimum");
   options.signal?.throwIfAborted();
   const scope = cancellation(options.signal, parent ? undefined : policy.timeoutMs);
+  const policyPlan = isPolicy(input) ? definitions.get(input)! : undefined;
   let compiled: ReturnType<typeof Schema.compile> | undefined;
   let questions: Readonly<Record<string, Question.AnyQuestion>>;
   let request: EvaluationRequest | undefined;
@@ -83,8 +87,10 @@ export async function prepare(
   try {
     checkpoint();
     // Compile before awaiting the source, so metadata cannot drift across that await.
-    compiled = Schema.isSchema(input) ? Schema.compile(input) : undefined;
-    questions = compiled ? compiled.questions : Question.normalize(input as Question.Batch);
+    compiled = policyPlan?.schema ?? (Schema.isSchema(input) ? Schema.compile(input) : undefined);
+    questions =
+      policyPlan?.questions ??
+      (compiled ? compiled.questions : Question.normalize(input as Question.Batch));
     checkpoint();
     if (Object.keys(questions).length > 0) {
       if (parent) parent.stage = "context";
@@ -145,9 +151,12 @@ export async function prepare(
           );
       context.check();
       context.stage = "decision";
+      const selection = policyPlan ? decide(policyPlan, evidence) : undefined;
+      context.check();
       const effective = context.policy;
       return Object.freeze({
-        value,
+        value: selection ? selection.value : value,
+        ...(selection ? { trace: selection.trace } : {}),
         evidence,
         diagnostics,
         operationId: context.id,

@@ -59,4 +59,4 @@ jobs:
       - run: bun add --dev --exact zod@4.0.0
       - name: Types, runtime and installed package against minimum peer
         # Optional AI SDK integrations require Zod >=4.1.8; this job validates the native package peer.
-        run: bun run typecheck && bun test tests/jev.test.ts tests/providers-http.test.ts tests/schema.test.ts tests/questions.test.ts tests/streams.test.ts tests/evidence.test.ts tests/replay.test.ts tests/diagnostics.test.ts tests/lifecycle.test.ts tests/probability-source.test.ts && bun run build && bun run test:package:native
+        run: bun run typecheck && bun test tests/jev.test.ts tests/providers-http.test.ts tests/schema.test.ts tests/questions.test.ts tests/streams.test.ts tests/evidence.test.ts tests/replay.test.ts tests/diagnostics.test.ts tests/lifecycle.test.ts tests/probability-source.test.ts tests/policy.test.ts tests/branching.test.ts && bun run build && bun run test:package:native
