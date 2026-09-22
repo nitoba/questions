@@ -1,0 +1,116 @@
+name: Verify stable 0.1.0
+
+on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/verify-0.1.0.yml]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: verify-stable-0.1.0
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    if: github.repository == 'nitoba/questions' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          registry-url: https://registry.npmjs.org
+
+      - name: Verify the immutable release and npm dist-tags without republishing
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse v0.1.0^{commit})" = "a803c3e2a0cf1aca359310447b823326188d0f3a"
+          test "$(node -p "require('./package.json').version")" = "0.1.0"
+          test "$(npm view @nitoba/questions dist-tags.latest)" = "0.1.0"
+          npm view @nitoba/questions version dist-tags --json
+
+      - name: Verify a clean default npm install and the public policy API
+        run: |
+          set -euo pipefail
+          SMOKE="$(mktemp -d)"
+          cd "$SMOKE"
+          printf '{"name":"questions-stable-install-check","private":true,"type":"module"}\n' > package.json
+          npm install --ignore-scripts --no-audit --no-fund @nitoba/questions zod
+          npm ls @nitoba/questions zod --depth=0
+          node --input-type=module <<'NODE'
+          import assert from "node:assert/strict";
+          import { readFileSync } from "node:fs";
+          import { Policy, Questions, Question } from "@nitoba/questions";
+          import { z } from "zod";
+
+          // Read installed metadata from disk; do not depend on a package.json export.
+          const pkg = JSON.parse(readFileSync("node_modules/@nitoba/questions/package.json", "utf8"));
+          assert.equal(pkg.version, "0.1.0");
+          assert.equal(typeof Questions.create, "function");
+          assert.equal(typeof Policy.from, "function");
+          assert.equal(typeof Question.boolean, "function");
+
+          const native = Policy.from(
+            { urgent: Question.boolean("Is this request explicitly urgent?") },
+            { thresholds: { accept: 0.8, reject: 0.2 } },
+          )
+            .when(({ urgent }) => urgent.is(true), "priority")
+            .onUncertain("review")
+            .otherwise("normal");
+
+          const schema = Policy.from(
+            z.object({ urgent: z.boolean().describe("Is this request explicitly urgent?") }),
+            { thresholds: { accept: 0.8, reject: 0.2 } },
+          )
+            .when(({ urgent }) => urgent.is(true), "priority")
+            .onUncertain("review")
+            .otherwise("normal");
+
+          assert.ok(native);
+          assert.ok(schema);
+          console.log("Verified @nitoba/questions@0.1.0 from the default npm tag, public exports, and native/Zod policy construction.");
+          NODE
+
+      - name: Create and verify the stable GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          import { readFileSync, writeFileSync } from "node:fs";
+          const changelog = readFileSync("CHANGELOG.md", "utf8");
+          const notes = changelog.split("## 0.1.0 — 2026-09-22\n\n")[1]?.split("\n## ")[0];
+          if (!notes) throw new Error("Stable release notes are missing.");
+          writeFileSync(`${process.env.RUNNER_TEMP}/questions-release-notes.md`, notes + "\n\nInstall: `npm install @nitoba/questions zod` or `bun add @nitoba/questions zod`.\n\nnpm dist-tag: **latest**.\n");
+          NODE
+          if gh release view v0.1.0 --json tagName >/dev/null 2>&1; then
+            echo "The GitHub release already exists; verifying it without replacement."
+          else
+            gh release create v0.1.0 --verify-tag --title "@nitoba/questions 0.1.0" --notes-file "$RUNNER_TEMP/questions-release-notes.md" --latest
+          fi
+          gh release view v0.1.0 --json tagName,isDraft,isPrerelease,url > "$RUNNER_TEMP/questions-release.json"
+          node --input-type=module <<'NODE'
+          import assert from "node:assert/strict";
+          import { readFileSync } from "node:fs";
+          const release = JSON.parse(readFileSync(`${process.env.RUNNER_TEMP}/questions-release.json`, "utf8"));
+          assert.equal(release.tagName, "v0.1.0");
+          assert.equal(release.isDraft, false);
+          assert.equal(release.isPrerelease, false);
+          console.log(JSON.stringify(release, null, 2));
+          NODE
+
+      - name: Remove the completed one-off verification workflow
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm .github/workflows/verify-0.1.0.yml
+          git commit -m "chore: finish stable 0.1.0 publication verification"
+          git push origin HEAD:main
+          printf '## Stable release verified\n\n`@nitoba/questions@0.1.0` is published on npm under `latest`.\n\nClean default install, public imports, native/Zod policy construction, and stable GitHub release all verified. No package was republished or release tag moved.\n' >> "$GITHUB_STEP_SUMMARY"
