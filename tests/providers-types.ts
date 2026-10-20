@@ -20,6 +20,11 @@ Vercel.create({ apiKey: "compile-only", confidence: "entropy" });
 TypeSafe.create({ apiKey: "compile-only", rounding: { probabilityDecimals: 3 } });
 // @ts-expect-error rounding declarations accept only known precision fields
 TypeSafe.create({ apiKey: "compile-only", rounding: { digits: 2 } });
+TypeSafe.create({ apiKey: "compile-only", inconsistentChoice: "argmax" });
+const policy: SystemOne.InconsistentChoice = "reject";
+SystemOne.create({ baseURL: "https://host.test", model: "m", inconsistentChoice: policy });
+// @ts-expect-error inconsistent choices are either rejected or replaced by the argmax
+TypeSafe.create({ apiKey: "compile-only", inconsistentChoice: "first" });
 // @ts-expect-error the generic System One host requires a model
 SystemOne.create({ baseURL: "https://host.test" });
 const schema = z.object({ route: z.enum(["a", "b"]) }).transform((value) => ({ id: value.route }));

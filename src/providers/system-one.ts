@@ -6,10 +6,11 @@ import { ProviderError, ValidationError } from "../errors.ts";
 import { integer, text } from "../internal/validation.ts";
 import { apiKey as validateKey, baseURL, customHeaders } from "../internal/http.ts";
 import { createHttp, HttpHookError } from "../internal/http-client.ts";
-import { requestBody, normalizeResponse } from "../internal/system-one.ts";
+import { requestBody, normalizeResponse, type InconsistentChoice } from "../internal/system-one.ts";
 import { rounding as validateRounding } from "../internal/evaluation-metadata.ts";
 
 export type { RetryOptions } from "../http.ts";
+export type { InconsistentChoice } from "../internal/system-one.ts";
 /** An HTTP endpoint implementing System One, not OpenAI Chat Completions or the AI SDK protocol. */
 export interface Options {
   /** API prefix, including any /v1 or proxy path. The relative path is appended, never replaced. */
@@ -41,6 +42,12 @@ export interface Options {
    * Declare what the host actually does; it widens validation tolerance and is preserved as evidence.
    */
   readonly rounding?: Rounding;
+  /**
+   * What to do when a choice answer is not its distribution's maximum-probability option.
+   * Defaults to reject. argmax selects that option and reports a compatibility warning naming
+   * the corrected answer keys; probabilities and every other validation stay unchanged.
+   */
+  readonly inconsistentChoice?: InconsistentChoice;
 }
 
 /**
@@ -73,6 +80,9 @@ export function create(options: Options): QuestionModel {
   headers.set("accept", "application/json");
   const maxCriteria = integer(options.maxCriteria ?? 255, 2, "maxCriteria");
   const rounding = validateRounding(options.rounding, "rounding");
+  const inconsistentChoice = options.inconsistentChoice ?? "reject";
+  if (inconsistentChoice !== "reject" && inconsistentChoice !== "argmax")
+    throw new ValidationError('expected "reject" or "argmax"', "inconsistentChoice");
   const send = createHttp({ ...options, provider: name, retainNetworkCause: true });
   return Object.freeze({
     name,
@@ -88,7 +98,7 @@ export function create(options: Options): QuestionModel {
           throw new ProviderError(name, "response", `${name} returned invalid JSON`);
         }
         run.signal?.throwIfAborted();
-        return normalizeResponse(value, rounding);
+        return normalizeResponse(value, { rounding, inconsistentChoice });
       } catch (error) {
         if (error instanceof HttpHookError) throw error.cause;
         throw error;

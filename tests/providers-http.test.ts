@@ -153,6 +153,87 @@ test("reported rounding wins over the declaration; SystemOne stays strict by def
   );
 });
 
+const choiceWire = (answers: Record<string, unknown>) => ({
+  model: "jev-1.13.0",
+  usage: { input_tokens: 3, output_tokens: 1 },
+  answers,
+});
+const inconsistent = {
+  type: "choice",
+  choice: "a",
+  probabilities: { a: 0.2, b: 0.5, c: 0.3 },
+  confidence: 0.4,
+};
+const routeBatch = {
+  c7q1: Question.choice("Route?", { a: null, b: null, c: null }),
+  c8q1: Question.choice("Route?", { a: null, b: null, c: null }),
+};
+
+test("inconsistent choices are rejected by default with the failing answer path", async () => {
+  for (const extra of [{}, { inconsistentChoice: "reject" as const }]) {
+    const model = TypeSafe.create({
+      apiKey: "key",
+      ...extra,
+      fetch: transport(async () =>
+        Response.json(choiceWire({ c7q1: inconsistent, c8q1: { ...inconsistent, choice: "b" } })),
+      ),
+    });
+    await assert.rejects(
+      Questions.create({ model }).about("x").evidence(routeBatch),
+      (error) => error instanceof ValidationError && error.path === "response.answers.c7q1.choice",
+    );
+  }
+});
+
+test("opt-in argmax selects the maximum-probability option and reports a warning", async () => {
+  for (const factory of [TypeSafe.create, Jev.create]) {
+    const model = factory({
+      apiKey: "key",
+      inconsistentChoice: "argmax",
+      fetch: transport(async () =>
+        Response.json(
+          choiceWire({
+            c7q1: inconsistent,
+            // A tie within tolerance is already consistent and stays as reported.
+            c8q1: { ...inconsistent, choice: "a", probabilities: { a: 0.45, b: 0.45, c: 0.1 } },
+          }),
+        ),
+      ),
+    });
+    const evidence = await Questions.create({ model }).about("x").evidence(routeBatch);
+    assert.equal(evidence.answers.c7q1.choice, "b");
+    assert.deepEqual(evidence.answers.c7q1.probabilities, { a: 0.2, b: 0.5, c: 0.3 });
+    assert.equal(evidence.answers.c8q1.choice, "a");
+    assert.deepEqual(evidence.warnings, [
+      {
+        type: "compatibility",
+        feature: "choice",
+        details: "replaced a choice that was not the maximum-probability option: c7q1",
+      },
+    ]);
+  }
+});
+
+test("argmax never repairs malformed choice evidence", async () => {
+  for (const c7q1 of [
+    { ...inconsistent, choice: "z" },
+    { ...inconsistent, probabilities: { a: 0.2, b: "0.5", c: 0.3 } },
+    { ...inconsistent, probabilities: { a: 0.2, b: 0.9, c: 0.3 } },
+  ]) {
+    const model = TypeSafe.create({
+      apiKey: "key",
+      inconsistentChoice: "argmax",
+      fetch: transport(async () =>
+        Response.json(choiceWire({ c7q1, c8q1: { ...inconsistent, choice: "b" } })),
+      ),
+    });
+    await assert.rejects(
+      Questions.create({ model }).about("x").evidence(routeBatch),
+      (error) => error instanceof ValidationError && error.path.startsWith("response.answers.c7q1"),
+    );
+  }
+});
+
 test("generic local endpoint may explicitly omit authentication; presets require it", async () => {
   const model = SystemOne.create({
     baseURL: "http://localhost:9999",
@@ -192,6 +273,10 @@ test("invalid URLs, paths, headers and configs fail before fetch without disclos
     assert.throws(() => create({ headers: { [key]: "unsafe" } }), ValidationError);
   assert.throws(() => create({ model: "" }), ValidationError);
   assert.throws(() => create({ maxCriteria: 1 }), ValidationError);
+  assert.throws(
+    () => create({ inconsistentChoice: "fix" as "argmax" }),
+    (error) => error instanceof ValidationError && error.path === "inconsistentChoice",
+  );
   for (const rounding of [{ probabilityDecimals: 16 }, { probabilityDecimals: -1 }, { digits: 2 }])
     assert.throws(
       () => create({ rounding: rounding as NonNullable<SystemOne.Options["rounding"]> }),
