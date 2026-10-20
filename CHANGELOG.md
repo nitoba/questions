@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.2.0 — 2026-10-20
+
+- Add opt-in `inconsistentChoice: "argmax"` to System One, TypeSafe and Jev for choice answers that are not their distribution's maximum-probability option (#2). The default remains `"reject"`; corrections keep the reported probabilities and add a `compatibility` warning naming the corrected answer keys.
+
 ## 0.1.1 — 2026-10-20
 
 - Fix TypeSafe/Jev score validation failing on Jev's silent two-decimal rounding (#2). System One hosts can now declare `rounding` for responses that omit it; `TypeSafe.create` and `Jev.create` default to `{ probabilityDecimals: 2, scoreDecimals: 2 }`. Reported rounding still wins, and generic `SystemOne.create` remains strict by default.
