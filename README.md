@@ -11,7 +11,7 @@ readable deadlines, explicit retries, replay and observability as your applicati
 No Effect dependency, service container or alternative execution runtime. Independently inspired
 by [effect-questions](https://github.com/saiashirwad/effect-questions).
 
-> **Stable release:** `0.1.0` includes ordered policies and descriptive routing and is distributed through the npm `latest` tag.
+> **Stable release:** `0.1.1` includes ordered policies, descriptive routing and the TypeSafe/Jev rounding fix, and is distributed through the npm `latest` tag.
 > Existing release-candidate calls retain their contracts. Decisions are finite classifications, not arbitrary JSON generation, factual guarantees
 > or authorization to execute business actions. See the [changelog](CHANGELOG.md) and
 > [migration guide](docs/migration.md) before upgrading.

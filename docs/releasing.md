@@ -22,16 +22,16 @@ The workflow uses a GitHub-hosted runner, Node 24/npm 11, and `id-token: write`.
 
 The workflow accepts `v*` tags only when the tag matches `package.json` and points to a commit contained in `main`. Versions shaped as `x.y.z` publish with `latest`; `x.y.z-rc.N` publishes with `next`. Other prerelease shapes are rejected.
 
-For version `0.1.0`, after the validated release commit reaches `main`:
+For version `0.1.1`, after the validated release commit reaches `main`:
 
 ```sh
 git switch main
 git pull --ff-only origin main
-git tag v0.1.0
-git push origin v0.1.0
+git tag v0.1.1
+git push origin v0.1.1
 ```
 
-Do not repeat those tag commands after the release already exists. A pushed tag normally starts **Publish to npm** automatically. A tag created by another workflow using `GITHUB_TOKEN` does not emit a new workflow run; that workflow must explicitly dispatch `publish.yml` with `release_tag=v0.1.0` instead.
+Do not repeat those tag commands after the release already exists. A pushed tag normally starts **Publish to npm** automatically. A tag created by another workflow using `GITHUB_TOKEN` does not emit a new workflow run; that workflow must explicitly dispatch `publish.yml` with `release_tag=v0.1.1` instead.
 
 The effective stable publication command is:
 
@@ -49,4 +49,4 @@ npm view @nitoba/questions dist-tags --json
 npm install @nitoba/questions zod
 ```
 
-For this release, both the default version and `dist-tags.latest` must resolve to `0.1.0`. An older version may remain under `next`; that does not affect normal installation. Do not reuse a published version, move an existing release tag, or publish an uncommitted working tree. Ordinary source changes do not publish automatically.
+For this release, both the default version and `dist-tags.latest` must resolve to `0.1.1`. An older version may remain under `next`; that does not affect normal installation. Do not reuse a published version, move an existing release tag, or publish an uncommitted working tree. Ordinary source changes do not publish automatically.
