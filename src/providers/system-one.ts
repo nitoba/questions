@@ -1,5 +1,5 @@
 import type { Input as DurationInput } from "../duration.ts";
-import type { EvaluationRequest, QuestionModel } from "../model.ts";
+import type { EvaluationRequest, QuestionModel, Rounding } from "../model.ts";
 import type { RunOptions } from "../types.ts";
 import type { Retry, Hooks } from "../http.ts";
 import { ProviderError, ValidationError } from "../errors.ts";
@@ -7,6 +7,7 @@ import { integer, text } from "../internal/validation.ts";
 import { apiKey as validateKey, baseURL, customHeaders } from "../internal/http.ts";
 import { createHttp, HttpHookError } from "../internal/http-client.ts";
 import { requestBody, normalizeResponse } from "../internal/system-one.ts";
+import { rounding as validateRounding } from "../internal/evaluation-metadata.ts";
 
 export type { RetryOptions } from "../http.ts";
 /** An HTTP endpoint implementing System One, not OpenAI Chat Completions or the AI SDK protocol. */
@@ -35,6 +36,11 @@ export interface Options {
   readonly maxResponseBytes?: number;
   /** Provider criteria ceiling; defaults to 255. It is not a client-side batching limit. */
   readonly maxCriteria?: number;
+  /**
+   * Precision the endpoint applies without reporting it, used only when a response omits rounding.
+   * Declare what the host actually does; it widens validation tolerance and is preserved as evidence.
+   */
+  readonly rounding?: Rounding;
 }
 
 /**
@@ -66,6 +72,7 @@ export function create(options: Options): QuestionModel {
   headers.set("content-type", "application/json");
   headers.set("accept", "application/json");
   const maxCriteria = integer(options.maxCriteria ?? 255, 2, "maxCriteria");
+  const rounding = validateRounding(options.rounding, "rounding");
   const send = createHttp({ ...options, provider: name, retainNetworkCause: true });
   return Object.freeze({
     name,
@@ -81,7 +88,7 @@ export function create(options: Options): QuestionModel {
           throw new ProviderError(name, "response", `${name} returned invalid JSON`);
         }
         run.signal?.throwIfAborted();
-        return normalizeResponse(value);
+        return normalizeResponse(value, rounding);
       } catch (error) {
         if (error instanceof HttpHookError) throw error.cause;
         throw error;

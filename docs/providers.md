@@ -108,7 +108,7 @@ const questions = Questions.create({
 });
 ```
 
-The host must accept `{ state, model, questions }` with `noul`, `choice` and `score`, and return System One `answers` plus snake-case usage counters. Structured choice descriptions are encoded as JSON text. A compatible host can configure `maxCriteria`; the default is 255. This is not a promise that an arbitrary hosting service implements the protocol.
+The host must accept `{ state, model, questions }` with `noul`, `choice` and `score`, and return System One `answers` plus snake-case usage counters. Structured choice descriptions are encoded as JSON text. A compatible host can configure `maxCriteria`; the default is 255. A host that rounds without reporting it can declare `rounding`, used only when a response omits its own; `TypeSafe.create` and `Jev.create` default to `{ probabilityDecimals: 2, scoreDecimals: 2 }`, matching Jev's silent two-decimal rounding. Declare only what the host actually does. This is not a promise that an arbitrary hosting service implements the protocol.
 
 Credentials may be **explicitly omitted** for a trusted unauthenticated endpoint, such as a local deployment. There is no implicit TypeSafe model, URL or credential fallback. `baseURL` and `model` are required. URLs reject embedded credentials, query parameters and fragments. Relative endpoint paths reject traversal and absolute URLs. Headers are snapshotted and cannot replace managed authentication/protocol headers. Use trusted configuration, not an unvalidated URL from an end user.
 
@@ -151,7 +151,7 @@ Advanced integrations can supply `confidence: (evidence, context) => number`. It
 
 `Evaluation.usage.inputTokens` and `.outputTokens` are now optional. Missing means **unreported**, not zero tokens or zero cost. Preserve that distinction in accounting; use an explicit application policy for unknown counters.
 
-`rounding`, `warnings` and `providerMetadata` are preserved when supplied and validated. Rounding must declare integer decimal places in `[0, 15]`. Checks allow half a unit in the last reported decimal place per probability and score, plus the existing floating-point tolerance. Values are not silently normalized, clamped or rounded again. No rounding declaration means the original strict checks. Zero-total distributions remain invalid. Arithmetic over rounded probabilities retains their approximation error; expected-loss outputs are therefore approximate too.
+`rounding`, `warnings` and `providerMetadata` are preserved when supplied and validated. Rounding must declare integer decimal places in `[0, 15]`. Checks allow half a unit in the last reported decimal place per probability and score, plus the existing floating-point tolerance. Values are not silently normalized, clamped or rounded again. No rounding declaration means the original strict checks; the TypeSafe/Jev presets declare their provider's known precision instead (see above), and that declaration is preserved in `Evaluation.rounding`. Zero-total distributions remain invalid. Arithmetic over rounded probabilities retains their approximation error; expected-loss outputs are therefore approximate too.
 
 `Schema.compile(...).parse(evidence)` revalidates this normalized envelope, including the same rounding information. The reported model ID is taken from the SDK response when available, otherwise the configured ID; it is not independent proof of the Gateway's internal routing decision.
 

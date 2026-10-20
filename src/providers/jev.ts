@@ -1,6 +1,7 @@
 import { apiKey as validateKey } from "../internal/http.ts";
 import type { QuestionModel } from "../model.ts";
 import type { Options as TypeSafeOptions } from "./typesafe.ts";
+import { JEV_ROUNDING } from "../internal/system-one.ts";
 import { ValidationError } from "../errors.ts";
 import * as SystemOne from "./system-one.ts";
 
@@ -28,5 +29,6 @@ export function create(options: Options): QuestionModel {
     baseURL: options.baseURL ?? options.baseUrl ?? "https://api.typesafe.ai/v1",
     maxCriteria: 255,
     path: "systemone",
+    rounding: options.rounding ?? JEV_ROUNDING,
   });
 }

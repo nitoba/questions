@@ -22,21 +22,20 @@ export function usage(value: unknown): Usage {
 }
 
 /** @internal Match the Evaluation V4 precision contract; reject invalid or excessively broad declarations. */
-export function rounding(value: unknown): Rounding | undefined {
+export function rounding(value: unknown, path = "response.rounding"): Rounding | undefined {
   if (value === undefined) return undefined;
-  const object = record(value, "response.rounding");
+  const object = record(value, path);
   const fields = ["probabilityDecimals", "scoreDecimals"] as const;
   for (const key of Object.keys(object)) {
     if (!fields.includes(key as (typeof fields)[number]))
-      throw new ValidationError("unknown rounding field", `response.rounding.${key}`);
+      throw new ValidationError("unknown rounding field", `${path}.${key}`);
   }
   return Object.freeze(
     Object.fromEntries(
       fields.flatMap((key) => {
         if (object[key] === undefined) return [];
-        const decimals = integer(object[key], 0, `response.rounding.${key}`);
-        if (decimals > 15)
-          throw new ValidationError("at most 15 decimal places", `response.rounding.${key}`);
+        const decimals = integer(object[key], 0, `${path}.${key}`);
+        if (decimals > 15) throw new ValidationError("at most 15 decimal places", `${path}.${key}`);
         return [[key, decimals]];
       }),
     ),

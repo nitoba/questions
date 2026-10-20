@@ -1,6 +1,7 @@
 import { test } from "bun:test";
 import assert from "node:assert/strict";
 import {
+  Question,
   Questions,
   SystemOne,
   TypeSafe,
@@ -70,6 +71,88 @@ test("TypeSafe is a preset; Jev keeps its original diagnostic name and baseUrl a
   );
 });
 
+// Jev payloads from issue #2: scores and probabilities rounded independently to two decimals.
+const roundedScores = {
+  c0q0: { score: 3.48, probabilities: { 0: 0.01, 1: 0.01, 2: 0.01, 3: 0.44, 4: 0.53 } },
+  c2q0: { score: 3.71, probabilities: { 0: 0, 1: 0.01, 2: 0.01, 3: 0.22, 4: 0.76 } },
+  c7q0: { score: 2.76, probabilities: { 0: 0, 1: 0.04, 2: 0.18, 3: 0.74, 4: 0.04 } },
+  c25q0: { score: 3.09, probabilities: { 0: 0, 1: 0, 2: 0.12, 3: 0.65, 4: 0.23 } },
+};
+const levels = ["none", "low", "some", "high", "full"] as const;
+const scoreBatch = {
+  c0q0: Question.score("Fit?", levels),
+  c2q0: Question.score("Fit?", levels),
+  c7q0: Question.score("Fit?", levels),
+  c25q0: Question.score("Fit?", levels),
+};
+const roundedWire = (rounding?: unknown) => ({
+  model: "jev-1.13.0",
+  usage: { input_tokens: 3, output_tokens: 1 },
+  ...(rounding === undefined ? {} : { rounding }),
+  answers: Object.fromEntries(
+    Object.entries(roundedScores).map(([key, answer]) => [
+      key,
+      {
+        type: "score",
+        ...answer,
+        confidence: 0.5,
+        legend: Object.fromEntries(levels.map((level, index) => [index, level])),
+      },
+    ]),
+  ),
+});
+
+test("TypeSafe and Jev declare the two-decimal rounding Jev applies silently", async () => {
+  for (const factory of [TypeSafe.create, Jev.create]) {
+    const model = factory({
+      apiKey: "key",
+      fetch: transport(async () => Response.json(roundedWire())),
+    });
+    const evidence = await Questions.create({ model }).about("x").evidence(scoreBatch);
+    assert.deepEqual(evidence.rounding, { probabilityDecimals: 2, scoreDecimals: 2 });
+    // Values are preserved as reported, not normalized to the weighted level index.
+    assert.equal(evidence.answers.c0q0.score, 3.48);
+    assert.equal(evidence.answers.c2q0.probabilities[4], 0.76);
+  }
+});
+
+test("reported rounding wins over the declaration; SystemOne stays strict by default", async () => {
+  const reported = TypeSafe.create({
+    apiKey: "key",
+    fetch: transport(async () => Response.json(roundedWire({ probabilityDecimals: 3 }))),
+  });
+  await assert.rejects(
+    Questions.create({ model: reported }).about("x").evidence(scoreBatch),
+    (error) => error instanceof ValidationError && error.path === "response.answers.c0q0.score",
+  );
+  const strict = SystemOne.create({
+    baseURL: "https://a.test",
+    model: "m",
+    fetch: transport(async () => Response.json(roundedWire())),
+  });
+  await assert.rejects(
+    Questions.create({ model: strict }).about("x").evidence(scoreBatch),
+    ValidationError,
+  );
+  const declared = SystemOne.create({
+    baseURL: "https://a.test",
+    model: "m",
+    rounding: { probabilityDecimals: 2, scoreDecimals: 2 },
+    fetch: transport(async () => Response.json(roundedWire())),
+  });
+  const evidence = await Questions.create({ model: declared }).about("x").evidence(scoreBatch);
+  assert.deepEqual(evidence.rounding, { probabilityDecimals: 2, scoreDecimals: 2 });
+  const narrower = TypeSafe.create({
+    apiKey: "key",
+    rounding: { probabilityDecimals: 4, scoreDecimals: 4 },
+    fetch: transport(async () => Response.json(roundedWire())),
+  });
+  await assert.rejects(
+    Questions.create({ model: narrower }).about("x").evidence(scoreBatch),
+    ValidationError,
+  );
+});
+
 test("generic local endpoint may explicitly omit authentication; presets require it", async () => {
   const model = SystemOne.create({
     baseURL: "http://localhost:9999",
@@ -109,6 +192,11 @@ test("invalid URLs, paths, headers and configs fail before fetch without disclos
     assert.throws(() => create({ headers: { [key]: "unsafe" } }), ValidationError);
   assert.throws(() => create({ model: "" }), ValidationError);
   assert.throws(() => create({ maxCriteria: 1 }), ValidationError);
+  for (const rounding of [{ probabilityDecimals: 16 }, { probabilityDecimals: -1 }, { digits: 2 }])
+    assert.throws(
+      () => create({ rounding: rounding as NonNullable<SystemOne.Options["rounding"]> }),
+      (error) => error instanceof ValidationError && error.path.startsWith("rounding"),
+    );
   assert.throws(
     () => create({ retry: { maxRetries: 1, jitter: "yes" as unknown as boolean } }),
     ValidationError,

@@ -1,8 +1,11 @@
-import type { EvaluationRequest } from "../model.ts";
+import type { EvaluationRequest, Rounding } from "../model.ts";
 import type { Description } from "../types.ts";
 import { ValidationError } from "../errors.ts";
 import { normalize } from "../question.ts";
 import { record, state as validateState } from "./validation.ts";
+
+/** Jev rounds probabilities and scores independently to two decimals without reporting it. */
+export const JEV_ROUNDING: Rounding = Object.freeze({ probabilityDecimals: 2, scoreDecimals: 2 });
 
 function describe(value: Description): string | null {
   return value === null || typeof value === "string" ? value : JSON.stringify(value);
@@ -57,14 +60,20 @@ export function requestBody(
   return JSON.stringify({ state: validateState(request.state), model, questions: wire });
 }
 
-/** Convert only the provider protocol. The Questions client performs full semantic validation. */
-export function normalizeResponse(value: unknown): unknown {
+/**
+ * Convert only the provider protocol. The Questions client performs full semantic validation.
+ * Reported rounding wins; the configured declaration covers endpoints that round silently.
+ */
+export function normalizeResponse(value: unknown, rounding?: Rounding): unknown {
   const response = record(value, "response");
   const usage = record(response.usage, "response.usage");
   const answers = record(response.answers, "response.answers");
   return {
     model: response.model,
     usage: { inputTokens: usage.input_tokens, outputTokens: usage.output_tokens },
+    ...(response.rounding === undefined && rounding === undefined
+      ? {}
+      : { rounding: response.rounding ?? rounding }),
     answers: Object.fromEntries(
       Object.entries(answers).map(([key, raw]) => {
         const answer = record(raw, `response.answers.${key}`);

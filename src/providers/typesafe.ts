@@ -1,6 +1,7 @@
 import { apiKey as validateKey } from "../internal/http.ts";
-import type { QuestionModel } from "../model.ts";
+import type { QuestionModel, Rounding } from "../model.ts";
 import * as SystemOne from "./system-one.ts";
+import { JEV_ROUNDING } from "../internal/system-one.ts";
 
 /** TypeSafe defaults with explicit credentials. All transport options remain available. */
 export interface Options extends Omit<
@@ -12,6 +13,8 @@ export interface Options extends Omit<
   readonly model?: string;
   /** Defaults to https://api.typesafe.ai/v1. */
   readonly baseURL?: string;
+  /** Defaults to two decimals for probabilities and scores, which Jev applies without reporting. */
+  readonly rounding?: Rounding;
 }
 export type { RetryOptions } from "./system-one.ts";
 
@@ -31,5 +34,6 @@ export function create(options: Options): QuestionModel {
     baseURL: options.baseURL ?? "https://api.typesafe.ai/v1",
     maxCriteria: 255,
     path: "systemone",
+    rounding: options.rounding ?? JEV_ROUNDING,
   });
 }

@@ -18,7 +18,10 @@ export interface Usage {
   readonly inputTokens?: number;
   readonly outputTokens?: number;
 }
-/** Precision explicitly reported by an evaluation provider; values are preserved, not normalized. */
+/**
+ * Precision reported by an evaluation provider, or declared by its preset when the provider rounds
+ * silently. Values are preserved, not normalized.
+ */
 export interface Rounding {
   readonly probabilityDecimals?: number;
   readonly scoreDecimals?: number;

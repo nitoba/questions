@@ -17,6 +17,9 @@ const models: QuestionModel[] = [
 AISDK.create({ model: gateway("typesafe-ai/jev") });
 // @ts-expect-error gateway confidence cannot be a made-up policy name
 Vercel.create({ apiKey: "compile-only", confidence: "entropy" });
+TypeSafe.create({ apiKey: "compile-only", rounding: { probabilityDecimals: 3 } });
+// @ts-expect-error rounding declarations accept only known precision fields
+TypeSafe.create({ apiKey: "compile-only", rounding: { digits: 2 } });
 // @ts-expect-error the generic System One host requires a model
 SystemOne.create({ baseURL: "https://host.test" });
 const schema = z.object({ route: z.enum(["a", "b"]) }).transform((value) => ({ id: value.route }));

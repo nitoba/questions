@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Fix TypeSafe/Jev score validation failing on Jev's silent two-decimal rounding (#2). System One hosts can now declare `rounding` for responses that omit it; `TypeSafe.create` and `Jev.create` default to `{ probabilityDecimals: 2, scoreDecimals: 2 }`. Reported rounding still wins, and generic `SystemOne.create` remains strict by default.
+
 ## 0.1.0 — 2026-09-22
 
 - Add immutable `Policy.from()` definitions over native questions and required, shape-preserving Zod decisions, with typed conditions and static literal-union results.
